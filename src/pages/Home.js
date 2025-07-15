@@ -3,6 +3,7 @@ import { SafeAreaView, StyleSheet, Text, View, Image, TouchableOpacity, Activity
 import Voice from '@react-native-voice/voice';
 import * as Speech from 'expo-speech';
 import axios from 'axios';
+import { OPENAI_API_KEY } from '@env';
 import { Audio } from 'expo-av';
 
 export default function Home() {

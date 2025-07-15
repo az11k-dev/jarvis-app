@@ -5,8 +5,6 @@ import * as Speech from 'expo-speech';
 import axios from 'axios';
 import { Audio } from 'expo-av';
 
-const OPENAI_API_KEY = 'sk'; // Вставь сюда свой ключ!
-
 export default function Home() {
     const [recording, setRecording] = useState(false);
     const [recognizedText, setRecognizedText] = useState('');

@@ -16,7 +16,6 @@
     "expo-av": "~15.1.7",
     "expo-dev-client": "~5.2.4",
     "expo-file-system": "^18.1.11",
-    "expo-permissions": "^14.4.0",
     "expo-speech": "~13.1.7",
     "expo-status-bar": "~2.2.3",
     "openai": "^5.9.0",

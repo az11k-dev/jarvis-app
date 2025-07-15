@@ -24,7 +24,7 @@ import {
 import OpenAI from 'openai';
 import * as Speech from 'expo-speech';
 
-const openaiApiKey = "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";
+const openaiApiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
 if (!openaiApiKey) {
     Alert.alert('OpenAI API Key Missing', 'Please set your OpenAI API key in app.json or app.config.js');

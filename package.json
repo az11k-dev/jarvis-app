@@ -12,14 +12,16 @@
     "@react-native-voice/voice": "^3.2.4",
     "axios": "^1.10.0",
     "expo": "~53.0.17",
+    "expo-audio": "~0.4.8",
     "expo-av": "~15.1.7",
     "expo-dev-client": "~5.2.4",
+    "expo-file-system": "^18.1.11",
     "expo-permissions": "^14.4.0",
     "expo-speech": "~13.1.7",
     "expo-status-bar": "~2.2.3",
+    "openai": "^5.9.0",
     "react": "19.0.0",
-    "react-native": "0.79.5",
-    "react-native-dotenv": "^3.4.11"
+    "react-native": "0.79.5"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

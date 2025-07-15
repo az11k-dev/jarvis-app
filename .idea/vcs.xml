@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="$PROJECT_DIR$/.." vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../Mythic" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../Pending" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../admin-panel-1" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../almighty-app" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../english-auto-termins" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../instagram" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../sellDomain" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../tamama" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../ui-controller" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/../volarant/volarant" vcs="Git" />
+  </component>
+</project>

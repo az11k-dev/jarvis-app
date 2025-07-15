@@ -25,6 +25,15 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.az11k.jarvisapp"
+    }, 
+      "config": {
+        "manifest": {
+          "application": {
+            "tools:replace": "android:appComponentFactory",
+            "android:appComponentFactory": "androidx.core.app.CoreComponentFactory"
+          }
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

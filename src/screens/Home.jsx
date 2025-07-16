@@ -119,34 +119,22 @@ export default function Home() {
         try {
             if (query) {
                 const youtubeAppUrl = `vnd.youtube://results?search_query=${encodeURIComponent(query)}`;
-                const supported = await Linking.canOpenURL(youtubeAppUrl);
 
-                if (supported) {
-                    await Linking.openURL(youtubeAppUrl);
-                    await speak(`Открываю YouTube по запросу: ${query}, сэр.`);
-                    return;
-                }
-
-                // Fallback в браузер
-                const fallbackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-                await Linking.openURL(fallbackUrl);
-                await speak(`Сэр, приложение YouTube не обнаружено. Ищу "${query}" в браузере.`);
+                await Linking.openURL(youtubeAppUrl);
+                await speak(`Открываю YouTube по запросу: ${query}, сэр.`);
             } else {
-                // Без запроса — просто откроем YouTube
                 const youtubeAppUrl = `vnd.youtube://`;
-                const supported = await Linking.canOpenURL(youtubeAppUrl);
 
-                if (supported) {
-                    await Linking.openURL(youtubeAppUrl);
-                    await speak(`Открываю YouTube, сэр.`);
-                } else {
-                    await Linking.openURL(`https://youtube.com`);
-                    await speak(`Сэр, приложение YouTube не обнаружено. Открываю в браузере.`);
-                }
+                await Linking.openURL(youtubeAppUrl);
+                await speak(`Открываю YouTube, сэр.`);
             }
         } catch (error) {
-            console.error('Ошибка при открытии YouTube:', error);
-            await speak('Произошла ошибка при попытке открыть YouTube, сэр.');
+            const fallbackUrl = query
+                ? `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`
+                : `https://youtube.com`;
+
+            await Linking.openURL(fallbackUrl);
+            await speak(`Сэр, приложение YouTube не обнаружено. Открываю в браузере.`);
         }
     };
 

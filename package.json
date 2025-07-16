@@ -23,7 +23,9 @@
     "openai": "^5.9.0",
     "react": "19.0.0",
     "react-native-markdown-display": "^7.0.2",
-    "expo-clipboard": "~7.1.5"
+    "expo-clipboard": "~7.1.5",
+    "expo-notifications": "~0.31.4",
+    "expo-device": "~7.1.4"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

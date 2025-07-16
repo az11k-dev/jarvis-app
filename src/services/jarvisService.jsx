@@ -1,6 +1,5 @@
 import {Alert} from 'react-native';
-import {speakJarvisResponse} from './ttsService';
-import {SYSTEM_MESSAGE} from '../utils/constants';
+import {scheduleReminder, parseSecondsFromPhrase} from './notificationsService';
 
 const openaiApiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
@@ -72,6 +71,19 @@ export const processAudioWithOpenAI = async ({
         }
 
         const userMessage = whisperData.text;
+
+        const seconds = parseSecondsFromPhrase(userMessage);
+        if (userMessage.toLowerCase().includes('напомни') && seconds) {
+            const reminderText = userMessage.replace(/.*напомни.*(через.*)/i, '').trim() || 'о задаче';
+
+            setDisplayedText(`Сэр, установлено напоминание: "${reminderText}" через ${Math.floor(seconds / 60)} минут.`);
+            setJarvisResponseText(`Сэр, установлено напоминание: "${reminderText}" через ${Math.floor(seconds / 60)} минут.`);
+            await speak(`Сэр, установлено напоминание: ${reminderText} через ${Math.floor(seconds / 60)} минут.`);
+            await scheduleReminder(reminderText, seconds);
+            setIsLoading(false);
+            return;
+        }
+
         setDisplayedText(`Вы сказали: "${userMessage}"\nJARVIS думает...`);
         setJarvisResponseText(`Вы сказали: "${userMessage}"\nJARVIS думает...`);
 
@@ -95,7 +107,6 @@ export const processAudioWithOpenAI = async ({
         const responseData = await completion.json();
 
         const jarvisReply = stripMarkdown(responseData.choices?.[0]?.message?.content) || '...';
-
 
 
         if (jarvisReply.toLowerCase().includes('open_camera')) {
@@ -123,6 +134,18 @@ export const processAudioWithOpenAI = async ({
             setJarvisResponseText(speakText);
             setDisplayedText(speakText);
             await openYoutube(query);
+            return;
+        }
+
+        if (jarvisReply.toLowerCase().includes('напомни') && parseSecondsFromPhrase(jarvisReply)) {
+            const seconds = parseSecondsFromPhrase(jarvisReply);
+            const reminderText = jarvisReply.replace(/.*напомни.*(через.*)/i, '').trim() || 'о задаче';
+            const confirmation = `Сэр, установлено напоминание: "${reminderText}" через ${Math.floor(seconds > 60 ? (seconds / 60) : seconds)} ${seconds > 60 ? "минут" : "секунд"}.`;
+
+            setDisplayedText(confirmation);
+            setJarvisResponseText(confirmation);
+            await speak(confirmation);
+            await scheduleReminder(reminderText, seconds);
             return;
         }
 

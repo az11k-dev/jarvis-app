@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import {StyleSheet} from 'react-native';
 
 export const styles = StyleSheet.create({
     container: {
@@ -17,7 +17,7 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         shadowColor: '#00ffe5',
-        shadowOffset: { width: 0, height: 0 },
+        shadowOffset: {width: 0, height: 0},
         shadowOpacity: 0.6,
         shadowRadius: 20,
         elevation: 10,
@@ -28,7 +28,7 @@ export const styles = StyleSheet.create({
         marginTop: 25,
         fontWeight: '600',
         textShadowColor: '#0ea5e9',
-        textShadowOffset: { width: 0, height: 1 },
+        textShadowOffset: {width: 0, height: 1},
         textShadowRadius: 10,
         textAlign: 'center',
     },
@@ -50,7 +50,7 @@ export const styles = StyleSheet.create({
         marginBottom: 20,
         padding: 20,
         shadowColor: '#38bdf8',
-        shadowOffset: { width: 0, height: 4 },
+        shadowOffset: {width: 0, height: 4},
         shadowOpacity: 0.5,
         shadowRadius: 12,
         elevation: 10,
@@ -76,7 +76,7 @@ export const styles = StyleSheet.create({
         backgroundColor: '#0ea5e9',
         borderRadius: 12,
         shadowColor: '#0ea5e9',
-        shadowOffset: { width: 0, height: 0 },
+        shadowOffset: {width: 0, height: 0},
         shadowOpacity: 0.6,
         shadowRadius: 8,
     },
@@ -93,7 +93,7 @@ export const styles = StyleSheet.create({
         backgroundColor: '#ef4444',
         borderRadius: 12,
         shadowColor: '#f87171',
-        shadowOffset: { width: 0, height: 0 },
+        shadowOffset: {width: 0, height: 0},
         shadowOpacity: 0.5,
         shadowRadius: 6,
     },
@@ -116,7 +116,7 @@ export const styles = StyleSheet.create({
         width: '90%',
         maxHeight: '80%',
         shadowColor: '#0ea5e9',
-        shadowOffset: { width: 0, height: 8 },
+        shadowOffset: {width: 0, height: 8},
         shadowOpacity: 0.6,
         shadowRadius: 10,
         elevation: 15,
@@ -167,4 +167,17 @@ export const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: 'bold',
     },
+    stopCon: {
+        marginTop: 20,
+        paddingVertical: 10,
+        paddingHorizontal: 50,
+        backgroundColor: '#ef4444',
+        borderRadius: 10,
+        alignItems: 'center',
+
+    },
+    stop: {
+        color: "#fff",
+        fontSize: 18,
+    }
 });

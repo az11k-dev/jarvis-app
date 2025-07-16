@@ -1,18 +1,19 @@
-import React, { useState, useRef } from 'react';
-import {Alert, SafeAreaView, TouchableOpacity, Text, Animated} from 'react-native';
-import { useAudioRecorder, useAudioRecorderState, RecordingPresets } from 'expo-audio';
-import { Linking } from 'react-native';
+import React, {useState, useRef} from 'react';
+import {Alert, SafeAreaView, TouchableOpacity, Text, Animated, View} from 'react-native';
+import {useAudioRecorder, useAudioRecorderState, RecordingPresets} from 'expo-audio';
+import {Linking} from 'react-native';
+import * as Speech from 'expo-speech';
 
 import MicrophoneButton from '../components/MicrophoneButton';
 import ResponseBox from '../components/ResponseBox';
 import VoicePickerModal from '../components/VoicePickerModal';
 
-import { useVoiceSetup } from '../hooks/useVoiceSetup';
-import { speakJarvisResponse } from '../services/ttsService';
-import { processAudioWithOpenAI } from '../services/jarvisService';
+import {useVoiceSetup} from '../hooks/useVoiceSetup';
+import {speakJarvisResponse} from '../services/ttsService';
+import {processAudioWithOpenAI} from '../services/jarvisService';
 
-import { SYSTEM_MESSAGE } from '../utils/constants';
-import { styles } from '../styles/mainStyles';
+import {SYSTEM_MESSAGE} from '../utils/constants';
+import {styles} from '../styles/mainStyles';
 import * as ImagePicker from 'expo-image-picker';
 
 export default function Home() {
@@ -74,7 +75,7 @@ export default function Home() {
 
     const openCamera = async () => {
         try {
-            const { status } = await ImagePicker.requestCameraPermissionsAsync();
+            const {status} = await ImagePicker.requestCameraPermissionsAsync();
             if (status !== 'granted') {
                 Alert.alert('Разрешение отклонено', 'Для использования камеры необходимо предоставить разрешение.');
                 await speak('Сэр, я не могу открыть камеру без вашего разрешения.');
@@ -102,16 +103,50 @@ export default function Home() {
     };
 
     const openTelegram = async () => {
-        const telegramUrl = 'tg://'; // замените на нужный username
-        const fallbackUrl = 'https://t.me'; // на случай, если Telegram не установлен
+        const tgUrl = 'tg://';
+        const fallbackUrl = 'https://t.me';
 
-        const supported = await Linking.canOpenURL(telegramUrl);
-        if (supported) {
-            await Linking.openURL(telegramUrl);
+        try {
+            await Linking.openURL(tgUrl);
             await speak('Открываю Telegram, сэр.');
-        } else {
+        } catch (error) {
             await Linking.openURL(fallbackUrl);
-            await speak('Сэр, Telegram не установлен. Перехожу по ссылке в браузере.');
+            await speak('Сэр, Telegram не установлен. Перехожу в браузер.');
+        }
+    };
+
+    const openYoutube = async (query) => {
+        try {
+            if (query) {
+                const youtubeAppUrl = `vnd.youtube://results?search_query=${encodeURIComponent(query)}`;
+                const supported = await Linking.canOpenURL(youtubeAppUrl);
+
+                if (supported) {
+                    await Linking.openURL(youtubeAppUrl);
+                    await speak(`Открываю YouTube по запросу: ${query}, сэр.`);
+                    return;
+                }
+
+                // Fallback в браузер
+                const fallbackUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
+                await Linking.openURL(fallbackUrl);
+                await speak(`Сэр, приложение YouTube не обнаружено. Ищу "${query}" в браузере.`);
+            } else {
+                // Без запроса — просто откроем YouTube
+                const youtubeAppUrl = `vnd.youtube://`;
+                const supported = await Linking.canOpenURL(youtubeAppUrl);
+
+                if (supported) {
+                    await Linking.openURL(youtubeAppUrl);
+                    await speak(`Открываю YouTube, сэр.`);
+                } else {
+                    await Linking.openURL(`https://youtube.com`);
+                    await speak(`Сэр, приложение YouTube не обнаружено. Открываю в браузере.`);
+                }
+            }
+        } catch (error) {
+            console.error('Ошибка при открытии YouTube:', error);
+            await speak('Произошла ошибка при попытке открыть YouTube, сэр.');
         }
     };
 
@@ -133,10 +168,11 @@ export default function Home() {
                 chatHistory,
                 setChatHistory,
                 setDisplayedText,
-                setJarvisResponseText: setDisplayedText, // Объединено
+                setJarvisResponseText: setDisplayedText,
                 speak,
                 openCamera,
                 openTelegram,
+                openYoutube,
                 setIsLoading,
             });
         }
@@ -150,26 +186,32 @@ export default function Home() {
                 scrollRef={scrollRef}
             />
 
-            <MicrophoneButton
-                onPress={recorderState.isRecording ? stopRecording : record}
-                isRecording={recorderState.isRecording}
-                animatedScale={animatedScale}
-            />
+            <View style={styles.controlsContainer}>
+                <MicrophoneButton
+                    onPress={recorderState.isRecording ? stopRecording : record}
+                    isRecording={recorderState.isRecording}
+                    animatedScale={animatedScale}
+                />
 
-            <TouchableOpacity style={styles.selectVoiceButton} onPress={() => setIsVoicePickerVisible(true)}>
-                <Text style={styles.selectVoiceButtonText}>Выбрать голос JARVIS</Text>
-            </TouchableOpacity>
+                <TouchableOpacity style={styles.selectVoiceButton} onPress={() => setIsVoicePickerVisible(true)}>
+                    <Text style={styles.selectVoiceButtonText}>🎙️ Выбрать голос JARVIS</Text>
+                </TouchableOpacity>
 
-            <TouchableOpacity
-                style={styles.clearChatButton}
-                onPress={() => {
+                <TouchableOpacity style={styles.clearChatButton} onPress={() => {
                     setChatHistory([SYSTEM_MESSAGE]);
                     setDisplayedText('Жду ваших указаний, сэр.');
                     Alert.alert('Чат очищен', 'История разговора сброшена.');
-                }}
-            >
-                <Text style={styles.clearChatButtonText}>Очистить чат</Text>
-            </TouchableOpacity>
+                }}>
+                    <Text style={styles.clearChatButtonText}>🗑 Очистить чат</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.stopCon} onPress={() => {
+                    Speech.stop();
+                    setDisplayedText("");
+                }}>
+                    <Text style={styles.stop}>⛔️ Остановить</Text>
+                </TouchableOpacity>
+            </View>
 
             <VoicePickerModal
                 isVisible={isVoicePickerVisible}
@@ -178,7 +220,7 @@ export default function Home() {
                 setSelectedVoiceId={setSelectedVoiceId}
                 onClose={() => setIsVoicePickerVisible(false)}
             />
-
         </SafeAreaView>
+
     );
 }

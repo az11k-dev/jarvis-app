@@ -4,6 +4,7 @@ import {useEffect, useState} from "react";
 import * as Notifications from "expo-notifications";
 import {requestDeviceAuth} from "./src/utils/auth";
 import AccessDenied from "./src/components/AccessDenied";
+import * as Speech from 'expo-speech';
 
 
 export default function App() {
@@ -24,7 +25,21 @@ export default function App() {
             }),
         });
 
+        const subscription = Notifications.addNotificationReceivedListener(notification => {
+            const message = notification.request.content.body;
+            if (message) {
+                Speech.speak(message, {
+                    language: "ru-RU",
+                    voice: "ru-ru-x-ruf-network",
+                    rate: 0.9,
+                    pitch: 1.0,
+                });
+            }
+        });
+
+        return () => subscription.remove();
     }, []);
+
 
     return (
         <SafeAreaView style={{flex: 1}}>

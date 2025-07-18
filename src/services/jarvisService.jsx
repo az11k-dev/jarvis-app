@@ -1,5 +1,8 @@
 import {Alert} from 'react-native';
-import {scheduleReminder, parseSecondsFromPhrase} from './notificationsService';
+import {scheduleReminder, parseSecondsFromPhrase, parseReminderDetails} from './notificationsService';
+import {getLatestCommits} from "../core/github/commits";
+import {createGitHubRepo} from "../core/github/createRepo";
+import {deleteGitHubRepo} from "../core/github/deleteRepo";
 
 const openaiApiKey = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
@@ -71,10 +74,10 @@ export const processAudioWithOpenAI = async ({
         }
 
         const userMessage = whisperData.text;
+        const parsed = parseReminderDetails(userMessage);
 
-        const seconds = parseSecondsFromPhrase(userMessage);
-        if (userMessage.toLowerCase().includes('напомни') && seconds) {
-            const reminderText = userMessage.replace(/.*напомни.*(через.*)/i, '').trim() || 'о задаче';
+        if (userMessage.toLowerCase().includes('напомни') && parsed) {
+            const {reminderText, seconds} = parsed;
 
             setDisplayedText(`Сэр, установлено напоминание: "${reminderText}" через ${Math.floor(seconds / 60)} минут.`);
             setJarvisResponseText(`Сэр, установлено напоминание: "${reminderText}" через ${Math.floor(seconds / 60)} минут.`);
@@ -146,6 +149,97 @@ export const processAudioWithOpenAI = async ({
             setJarvisResponseText(confirmation);
             await speak(confirmation);
             await scheduleReminder(reminderText, seconds);
+            return;
+        }
+
+        if (jarvisReply.toLowerCase().startsWith('create_github_repo')) {
+            const repoName = jarvisReply.replace('create_github_repo', '').trim();
+            if (!repoName) {
+                await speak('Сэр, я не расслышал название репозитория.');
+                return;
+            }
+
+            try {
+                const repoUrl = await createGitHubRepo({name: repoName});
+                const responseText = `Сэр, репозиторий ${repoName} успешно создан. ${repoUrl}`;
+                console.log(repoName);
+                setDisplayedText(responseText);
+                setJarvisResponseText(responseText);
+                await speak(responseText);
+            } catch (error) {
+                const errText = `Не удалось создать репозиторий: ${error.message}`;
+                setDisplayedText(errText);
+                setJarvisResponseText(errText);
+                await speak(errText);
+            }
+            return;
+        }
+
+        // === GitHub: Delete Repository ===
+        if (jarvisReply.toLowerCase().startsWith('delete_github_repo')) {
+            const repoName = jarvisReply.replace('delete_github_repo', '').trim();
+            if (!repoName) {
+                await speak('Сэр, я не расслышал, какой репозиторий нужно удалить.');
+                return;
+            }
+
+            try {
+                const confirmed = await new Promise((resolve) => {
+                    Alert.alert(
+                        'Подтвердите удаление',
+                        `Вы уверены, что хотите удалить репозиторий: ${repoName}?`,
+                        [
+                            {text: 'Отмена', style: 'cancel', onPress: () => resolve(false)},
+                            {text: 'Удалить', style: 'destructive', onPress: () => resolve(true)},
+                        ],
+                    );
+                });
+
+                if (!confirmed) {
+                    await speak('Удаление отменено, сэр.');
+                    return;
+                }
+
+                const deleted = await deleteGitHubRepo('az11k-dev', repoName);
+                if (deleted) {
+                    const msg = `Сэр, репозиторий ${repoName} был успешно удалён.`;
+                    setJarvisResponseText(msg);
+                    setDisplayedText(msg);
+                    await speak(msg);
+                }
+            } catch (error) {
+                const errText = `Не удалось удалить репозиторий: ${error.message}`;
+                setDisplayedText(errText);
+                setJarvisResponseText(errText);
+                await speak(errText);
+            }
+
+            return;
+        }
+
+        if (jarvisReply.toLowerCase().startsWith('get_latest_commits')) {
+            const number = parseInt(jarvisReply.replace('get_latest_commits', '').trim()) || 5;
+            try {
+                const commits = await getLatestCommits(number);
+                if (!commits.length) {
+                    await speak("Сэр, не найдено ни одного коммита.");
+                    return;
+                }
+
+                const commitMessages = commits.map(
+                    c => `— ${c.author}: ${c.message.split('\n')[0]}`
+                ).join('\n');
+
+                const responseText = `Сэр, вот последние коммиты:\n${commitMessages}`;
+                setDisplayedText(responseText);
+                setJarvisResponseText(responseText);
+                await speak(responseText);
+            } catch (error) {
+                const errText = `Не удалось получить коммиты: ${error.message}`;
+                setDisplayedText(errText);
+                setJarvisResponseText(errText);
+                await speak(errText);
+            }
             return;
         }
 

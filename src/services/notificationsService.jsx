@@ -55,3 +55,37 @@ export function parseSecondsFromPhrase(text) {
 
     return null;
 }
+
+export function parseReminderDetails(text) {
+    const timeRegex = /через (\d+)\s?(секунд|минут|час)/i;
+    const timeMatch = text.match(timeRegex);
+
+    if (!timeMatch) return null;
+
+    const number = parseInt(timeMatch[1], 10);
+    const unit = timeMatch[2].toLowerCase();
+    let seconds;
+
+    switch (unit) {
+        case 'секунд':
+            seconds = number;
+            break;
+        case 'минут':
+            seconds = number * 60;
+            break;
+        case 'час':
+            seconds = number * 3600;
+            break;
+        default:
+            return null;
+    }
+
+    // Извлекаем текст напоминания
+    const reminderText = text
+        .replace(/напомни( мне)?/i, '')
+        .replace(timeRegex, '')
+        .replace(/через.*/i, '')
+        .trim() || 'о задаче';
+
+    return {reminderText, seconds};
+}

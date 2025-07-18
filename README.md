@@ -14,12 +14,17 @@ This is the core version focusing on voice input and intelligent response.
 
 ## 🚀 Features
 
-- 🎙️ **Voice Command Input** – Speak commands naturally and fluidly  
-- 🧠 **AI-Powered Brain** – OpenAI GPT handles all understanding and response generation  
-- 🗣️ **Voice Output Selection** – Choose between different system voices  
-- ⚙️ **Cross-platform (iOS & Android)** – Powered by Expo for rapid development  
-- 🔊 **TTS Integration** – Uses `expo-speech` for realistic voice playback  
-- 📱 **Mobile-optimized UI** – Clean and responsive design for all screen sizes
+* 🎙️ **Voice Command Input** – Speak commands naturally and fluidly
+* 🧠 **AI-Powered Brain** – OpenAI GPT handles understanding and dynamic responses
+* 🗣️ **Voice Output Selection** – Switch between different system voices on demand
+* 🔊 **TTS Integration** – Utilizes `expo-speech` for natural-sounding speech playback
+* 📱 **Mobile-Optimized UI** – Clean, responsive interface designed for all screen sizes
+* ⚙️ **Cross-Platform Support** – Built with Expo for seamless iOS and Android deployment
+* 🔐 **Secure Access** – Prompts for Face ID, Touch ID, or device password before launch
+* 🌐 **Smart App Launching** – Open apps like YouTube or Telegram via voice command
+* 📺 **YouTube Query Support** – Instantly open YouTube with specific search queries
+* 🧭 **Internet-Aware Intelligence** – Fetches real-time information directly from the web
+
 
 ---
 
@@ -64,14 +69,39 @@ EXPO_PUBLIC_OPENAI_API_KEY=your_api_key_here
 
 ## 🎯 Roadmap
 
+* ✅ **Voice Input (STT: Speech to Text)**
+  Speak directly to J.A.R.V.I.S. using natural language
 
-[ + ] Memory for contextual conversations
+* ✅ **Intelligent Responses (OpenAI GPT-4)**
+  Understands intent and replies with human-like reasoning
 
-[ ] Wake word activation (e.g. “Hey Jarius”)
+* ✅ **Contextual Memory (Session-based, via AsyncStorage)**
+  Remembers recent actions and keywords for smarter interaction
 
-[ ] Custom plugins system
+* ✅ **App Launching (e.g., Telegram, YouTube, etc.)**
+  Opens mobile applications through voice commands
 
-[ ] UI assistant avatar (with camera interaction)
+* ✅ **Smart Commands via OpenAI**
+  – “Find a guitar tutorial on YouTube”
+  – “Generate a login page in React”
+
+* ✅ **Interactive Reminders & Notifications**
+  – “Sir, you have a meeting in 10 minutes”
+  Powered by `expo-notifications`
+
+* ✅ **Secure Access with Biometric Authentication**
+  – “Please confirm your identity: use Face ID or system password”
+  Powered by `expo-local-authentication`
+
+* ✅ **GitHub Command Integration**
+  Execute developer-oriented voice commands such as:
+  • “Create a repository named *uzbekistan*”
+  • “Show recent commits”
+  • “Delete the repository *uzbekistan*”
+
+* ⏳ **Custom Voice Personality for J.A.R.V.I.S.**
+  – Natural-sounding speech with pauses and tone
+  – “Good morning, Sir. How are you feeling today?”
 
 
 

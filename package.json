@@ -14,18 +14,21 @@
     "expo": "~53.0.17",
     "expo-audio": "~0.4.8",
     "expo-av": "~15.1.7",
+    "expo-blur": "^14.1.5",
     "expo-camera": "~16.1.10",
+    "expo-clipboard": "~7.1.5",
     "expo-dev-client": "~5.2.4",
+    "expo-device": "~7.1.4",
     "expo-file-system": "^18.1.11",
     "expo-image-picker": "~16.1.4",
+    "expo-local-authentication": "~16.0.5",
+    "expo-notifications": "~0.31.4",
     "expo-speech": "~13.1.7",
     "expo-status-bar": "~2.2.3",
     "openai": "^5.9.0",
-    "react": "19.0.0",
-    "react-native-markdown-display": "^7.0.2",
-    "expo-clipboard": "~7.1.5",
-    "expo-notifications": "~0.31.4",
-    "expo-device": "~7.1.4"
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-native-markdown-display": "^7.0.2"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0"

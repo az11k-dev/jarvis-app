@@ -176,8 +176,43 @@ export const styles = StyleSheet.create({
         alignItems: 'center',
 
     },
+    deniedContainer: {
+        flex: 1,
+        backgroundColor: '#0e0e0e',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     stop: {
         color: "#fff",
         fontSize: 18,
+    },
+    blurBox: {
+        width: 250,
+        paddingVertical: 40,
+        alignItems: 'center',
+        borderRadius: 20,
+        borderColor: '#ff003c',
+        borderWidth: 1.5,
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        shadowColor: '#ff003c',
+        shadowOffset: {width: 0, height: 4},
+        shadowOpacity: 0.4,
+        shadowRadius: 10,
+    },
+    lockIcon: {
+        fontSize: 60,
+        marginBottom: 10,
+        color: '#ff003c',
+    },
+    deniedText: {
+        fontSize: 24,
+        color: '#ffffff',
+        fontWeight: 'bold',
+        marginBottom: 5,
+    },
+    subText: {
+        fontSize: 16,
+        color: '#ff003c',
+        opacity: 0.8,
     }
 });

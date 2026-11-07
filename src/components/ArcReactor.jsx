@@ -3,6 +3,26 @@ import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 
 const SIZE = 240;
 const TICKS = 36;
+const TICK_WIDTH = 3;
+const TICK_RADIUS = SIZE / 2 - 10;
+
+// Each tick gets an explicit position on the circle around the reactor's
+// centre and only rotates around its own midpoint. Relying on implicit
+// centering of absolute children plus a rotate→translate chain put the ring
+// off-centre on device, so the core no longer sat in the middle of it.
+const TICK_LAYOUT = Array.from({ length: TICKS }, (_, i) => {
+  const angle = (2 * Math.PI * i) / TICKS;
+  const major = i % 3 === 0;
+  const height = major ? 14 : 7;
+  return {
+    width: TICK_WIDTH,
+    height,
+    left: SIZE / 2 + TICK_RADIUS * Math.sin(angle) - TICK_WIDTH / 2,
+    top: SIZE / 2 - TICK_RADIUS * Math.cos(angle) - height / 2,
+    opacity: major ? 1 : 0.5,
+    transform: [{ rotate: `${(360 / TICKS) * i}deg` }],
+  };
+});
 
 export const STATUS_COLORS = {
   off: '#334155',
@@ -127,21 +147,10 @@ export default function ArcReactor({ status, level, userSpeaking, onPress }) {
       <Animated.View
         style={[styles.layer, { opacity: dim, transform: [{ rotate }] }]}
       >
-        {Array.from({ length: TICKS }, (_, i) => (
+        {TICK_LAYOUT.map((tick, i) => (
           <View
             key={i}
-            style={[
-              styles.tick,
-              {
-                backgroundColor: color,
-                height: i % 3 === 0 ? 14 : 7,
-                opacity: i % 3 === 0 ? 1 : 0.5,
-                transform: [
-                  { rotate: `${(360 / TICKS) * i}deg` },
-                  { translateY: -SIZE / 2 + 10 },
-                ],
-              },
-            ]}
+            style={[styles.tick, tick, { backgroundColor: color }]}
           />
         ))}
       </Animated.View>
@@ -197,10 +206,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // Explicit size instead of absoluteFill: with the native-driven rotation,
+  // an absoluteFill layer spun around the wrong pivot on Android, so the
+  // tick ring orbited around the core instead of turning in place.
   layer: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'absolute',
+    width: SIZE,
+    height: SIZE,
   },
   halo: {
     position: 'absolute',
@@ -210,7 +222,6 @@ const styles = StyleSheet.create({
   },
   tick: {
     position: 'absolute',
-    width: 3,
     borderRadius: 2,
   },
   ring: {

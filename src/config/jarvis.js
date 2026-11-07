@@ -65,6 +65,16 @@ export const WAKE_FILLERS = new Set([
   'о',
 ]);
 
+// Context sent with every transcription request. It biases recognition
+// towards the assistant's name, spelled in the script of the language spoken
+// (a bare "Джарвис. Jarvis." made the model transliterate Russian into Latin
+// letters). On silence or noise the model tends to read the prompt back
+// verbatim, so it must not look like a command: an earlier prompt made of
+// sample commands ("Джарвис, который час?…") got echoed and answered.
+// Echoes of this text are dropped in jarvisEngine (see isNoise).
+export const TRANSCRIBE_PROMPT =
+  'Разговор с голосовым ассистентом Джарвисом (Jarvis) на русском и английском.';
+
 // Things transcription models "hear" in silence or noise.
 export const TRANSCRIPT_HALLUCINATIONS = [
   /^продолжение следует/i,

@@ -1,6 +1,11 @@
 import { fetch as expoFetch } from 'expo/fetch';
 import { File, Paths } from 'expo-file-system';
-import { MODELS, OPENAI_API_KEY, TTS_INSTRUCTIONS } from '../config/jarvis';
+import {
+  MODELS,
+  OPENAI_API_KEY,
+  TRANSCRIBE_PROMPT,
+  TTS_INSTRUCTIONS,
+} from '../config/jarvis';
 
 const API = 'https://api.openai.com/v1';
 
@@ -53,11 +58,7 @@ export async function transcribe(wavBytes, { signal } = {}) {
   const { body, contentType } = multipart(
     {
       model: MODELS.transcribe,
-      // Biases recognition towards the assistant's name, written in the
-      // script of the language spoken (a bare "Джарвис. Jarvis." made the
-      // model transliterate Russian into Latin letters).
-      prompt:
-        'Джарвис, который час? Джарвис, открой YouTube. Jarvis, what is the weather?',
+      prompt: TRANSCRIBE_PROMPT,
     },
     { name: 'utterance.wav', type: 'audio/wav', bytes: wavBytes }
   );

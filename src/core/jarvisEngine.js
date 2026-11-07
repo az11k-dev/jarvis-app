@@ -10,6 +10,7 @@ import {
   ACK_PHRASES,
   FOLLOW_UP_WINDOW_MS,
   OPENAI_API_KEY,
+  TRANSCRIBE_PROMPT,
   TRANSCRIPT_HALLUCINATIONS,
   VAD,
   WAKE_FILLERS,
@@ -49,8 +50,19 @@ export function parseWakeWord(text) {
   return all.slice(index + 1).filter((w) => !WAKE_FILLERS.has(w));
 }
 
+const promptWords = words(TRANSCRIBE_PROMPT).join(' ');
+
+// The transcription model reads its prompt back when it gets silence or
+// noise. A run of 3+ words lifted from the prompt is such an echo.
+const isPromptEcho = (text) => {
+  const w = words(text);
+  return w.length >= 3 && promptWords.includes(w.join(' '));
+};
+
 const isNoise = (text) =>
-  !text || TRANSCRIPT_HALLUCINATIONS.some((re) => re.test(text.trim()));
+  !text ||
+  isPromptEcho(text) ||
+  TRANSCRIPT_HALLUCINATIONS.some((re) => re.test(text.trim()));
 
 let messageId = 0;
 

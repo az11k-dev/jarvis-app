@@ -1,65 +1,70 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, FlatList } from 'react-native';
-import * as Speech from 'expo-speech';
+import { Modal, SectionList, Text, TouchableOpacity, View } from 'react-native';
+import { OPENAI_VOICES } from '../config/jarvis';
 import { styles } from '../styles/mainStyles';
 
 export default function VoicePickerModal({
   isVisible,
-  availableVoices,
-  selectedVoiceId,
-  setSelectedVoiceId,
+  deviceVoices,
+  selected,
+  onSelect,
   onClose,
 }) {
-  const handleVoiceSelect = (voice) => {
-    setSelectedVoiceId(voice.identifier);
-    onClose();
+  const sections = [
+    {
+      title: 'Нейронный голос JARVIS (OpenAI)',
+      data: OPENAI_VOICES.map((v) => ({
+        engine: 'openai',
+        id: v.id,
+        label: v.label,
+      })),
+    },
+    {
+      title: 'Голоса устройства (офлайн, быстрее)',
+      data: deviceVoices.map((v) => ({
+        engine: 'device',
+        id: v.identifier,
+        language: v.language,
+        label: `${v.name} · ${v.language}${v.quality === 'Enhanced' ? ' · HD' : ''}`,
+      })),
+    },
+  ];
 
-    Speech.speak(`Привет, я ${voice.name || 'этот голос'}.`, {
-      language: voice.language,
-      voice: voice.identifier,
-      rate: 1,
-      pitch: 1.2,
-    });
-  };
-
-  const renderItem = ({ item }) => (
-    <TouchableOpacity
-      style={[
-        styles.voiceItem,
-        item.identifier === selectedVoiceId && styles.selectedVoiceItem,
-      ]}
-      onPress={() => handleVoiceSelect(item)}
-    >
-      <Text style={styles.voiceText}>
-        {item.name} ({item.language} - {item.quality})
-      </Text>
-    </TouchableOpacity>
-  );
+  const isSelected = (item) =>
+    selected?.engine === item.engine && selected?.id === item.id;
 
   return (
     <Modal
       animationType="slide"
-      transparent={true}
+      transparent
       visible={isVisible}
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Выберите голос JARVIS</Text>
-          {availableVoices.length > 0 ? (
-            <FlatList
-              data={availableVoices}
-              keyExtractor={(item) => item.identifier}
-              renderItem={renderItem}
-              style={styles.voiceList}
-            />
-          ) : (
-            <Text style={styles.noVoicesText}>
-              Русские голоса не найдены на этом устройстве.
-            </Text>
-          )}
+          <Text style={styles.modalTitle}>Голос JARVIS</Text>
+          <SectionList
+            sections={sections}
+            keyExtractor={(item) => `${item.engine}:${item.id}`}
+            style={styles.voiceList}
+            stickySectionHeadersEnabled={false}
+            renderSectionHeader={({ section }) => (
+              <Text style={styles.sectionHeader}>{section.title}</Text>
+            )}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={[
+                  styles.voiceItem,
+                  isSelected(item) && styles.selectedVoiceItem,
+                ]}
+                onPress={() => onSelect(item)}
+              >
+                <Text style={styles.voiceText}>{item.label}</Text>
+              </TouchableOpacity>
+            )}
+          />
           <TouchableOpacity style={styles.closeModalButton} onPress={onClose}>
-            <Text style={styles.closeModalButtonText}>Закрыть</Text>
+            <Text style={styles.closeModalButtonText}>Готово</Text>
           </TouchableOpacity>
         </View>
       </View>

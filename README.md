@@ -14,16 +14,24 @@ This is the core version focusing on voice input and intelligent response.
 
 ## 🚀 Features
 
-- 🎙️ **Voice Command Input** – Speak commands naturally and fluidly
-- 🧠 **AI-Powered Brain** – OpenAI GPT handles understanding and dynamic responses
-- 🗣️ **Voice Output Selection** – Switch between different system voices on demand
-- 🔊 **TTS Integration** – Utilizes `expo-speech` for natural-sounding speech playback
-- 📱 **Mobile-Optimized UI** – Clean, responsive interface designed for all screen sizes
-- ⚙️ **Cross-Platform Support** – Built with Expo for seamless iOS and Android deployment
-- 🔐 **Secure Access** – Prompts for Face ID, Touch ID, or device password before launch
-- 🌐 **Smart App Launching** – Open apps like YouTube or Telegram via voice command
-- 📺 **YouTube Query Support** – Instantly open YouTube with specific search queries
-- 🧭 **Internet-Aware Intelligence** – Fetches real-time information directly from the web
+- 👂 **Wake word, hands-free** – Just say _«Джарвис, …»_ / _"Jarvis, …"_. No buttons. The command can follow the wake word in the same breath
+- 🗨️ **Only when addressed** – JARVIS reacts only to phrases that start with its name, detects when you stop talking and answers. Say just «Джарвис» and it replies «Слушаю, сэр» and takes your next phrase as the command
+- ✋ **Interrupt anytime** – Tap the arc reactor to cut JARVIS off, cancel, or start talking
+- 🧠 **Tool-calling brain** – OpenAI Responses API with function calling and built-in web search for live facts, weather and news
+- 🔊 **Neural JARVIS voice** – OpenAI TTS styled as a composed British AI butler, with streaming playback by sentence. Falls back to the device voice offline
+- 🌐 **Actions** – Open YouTube (with search), Telegram, the camera or any website; set reminders that JARVIS reads aloud; create, delete and inspect GitHub repos
+- 🔐 **Secure Access** – Face ID, Touch ID or device password before launch
+- ⚙️ **Cross-Platform** – Expo SDK 58, iOS and Android
+
+### How it listens
+
+The microphone streams raw 16 kHz PCM (`expo-audio` `useAudioStream`) into an on-device
+voice-activity detector (`src/audio/vad.js`) that adapts to room noise. Only the
+segments where someone actually speaks are sent to OpenAI for transcription. They are
+dropped unless they start with the wake word. The mic is only active while the app
+is in the foreground, and the screen stays on while it's open.
+
+All tuning (thresholds, command window, models, voices) lives in `src/config/jarvis.js`.
 
 ---
 

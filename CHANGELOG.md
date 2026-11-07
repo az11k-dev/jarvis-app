@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Hands-free mode: wake word «Джарвис» / "Jarvis", automatic end-of-speech detection, replies only to phrases that start with the wake word, tap-to-interrupt
+- On-device voice activity detection over the raw microphone stream (adaptive noise floor, pre-roll)
+- OpenAI Responses API with function calling and built-in web search, replacing text-command parsing
+- Neural JARVIS voice (OpenAI TTS) with sentence-by-sentence playback and device-voice fallback
+- Arc-reactor HUD with conversation transcript; voice and mic settings persist between launches
+- `open_url` action; reminders are read aloud by JARVIS when they fire
+
+### Fixed
+
+- Repository names with dashes were mangled (markdown stripping removed `-`)
+- Selected voice was overwritten on every reply
+
 ### Changed
 
 - Upgraded Expo SDK 54 → 58 (React Native 0.88, React 19.3) and all Expo modules

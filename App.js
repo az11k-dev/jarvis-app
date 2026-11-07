@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import { requestDeviceAuth } from './src/utils/auth';
 import AccessDenied from './src/components/AccessDenied';
-import * as Speech from 'expo-speech';
 
 export default function App() {
   const [unlocked, setUnlocked] = useState(false);
@@ -23,27 +22,12 @@ export default function App() {
         shouldSetBadge: false,
       }),
     });
-
-    const subscription = Notifications.addNotificationReceivedListener(
-      (notification) => {
-        const message = notification.request.content.body;
-        if (message) {
-          Speech.speak(message, {
-            language: 'ru-RU',
-            voice: 'ru-ru-x-ruf-network',
-            rate: 0.9,
-            pitch: 1.0,
-          });
-        }
-      }
-    );
-
-    return () => subscription.remove();
+    // Reminders are read aloud by JARVIS itself (see useJarvis).
   }, []);
 
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={{ flex: 1 }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#05080f' }}>
         {unlocked ? <Home /> : <AccessDenied />}
       </SafeAreaView>
     </SafeAreaProvider>

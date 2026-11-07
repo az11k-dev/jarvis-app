@@ -1,8 +1,12 @@
-const BASE_URL = 'https://api.github.com';
-const OWNER = 'az11k-dev'; // Например: 'azizbek-dev'
-const REPO = 'jarvis-app'; // Например: 'jarvis-app'
+import { GITHUB_DEFAULT_REPO, GITHUB_OWNER } from '../../config/jarvis';
 
-export async function getLatestCommits(limit = 5) {
+const BASE_URL = 'https://api.github.com';
+
+export async function getLatestCommits(
+  limit = 5,
+  repo = GITHUB_DEFAULT_REPO,
+  owner = GITHUB_OWNER
+) {
   const token = process.env.EXPO_PUBLIC_GITHUB_TOKEN_KEY;
 
   if (!token) {
@@ -10,7 +14,7 @@ export async function getLatestCommits(limit = 5) {
   }
 
   const res = await fetch(
-    `${BASE_URL}/repos/${OWNER}/${REPO}/commits?per_page=${limit}`,
+    `${BASE_URL}/repos/${owner}/${repo}/commits?per_page=${limit}`,
     {
       headers: {
         Authorization: `token ${token}`,

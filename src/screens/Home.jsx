@@ -1,243 +1,105 @@
-import React, { useState, useRef } from 'react';
-import {
-  Alert,
-  TouchableOpacity,
-  Text,
-  Animated,
-  View,
-  Linking,
-} from 'react-native';
+import React, { useState } from 'react';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  useAudioRecorder,
-  useAudioRecorderState,
-  RecordingPresets,
-} from 'expo-audio';
-import * as Speech from 'expo-speech';
 
-import MicrophoneButton from '../components/MicrophoneButton';
-import ResponseBox from '../components/ResponseBox';
+import ArcReactor, { STATUS_COLORS } from '../components/ArcReactor';
+import Transcript from '../components/Transcript';
 import VoicePickerModal from '../components/VoicePickerModal';
-
-import { useVoiceSetup } from '../hooks/useVoiceSetup';
-import { speakJarvisResponse } from '../services/ttsService';
-import { processAudioWithOpenAI } from '../services/jarvisService';
-
-import { SYSTEM_MESSAGE } from '../utils/constants';
+import { useJarvis } from '../hooks/useJarvis';
 import { styles } from '../styles/mainStyles';
-import * as ImagePicker from 'expo-image-picker';
+
+const STATUS_TEXT = {
+  off: ['Микрофон выключен', 'Коснитесь ядра, чтобы говорить'],
+  standby: ['Ожидание', 'Скажите «Джарвис» или коснитесь ядра'],
+  listening: ['Слушаю, сэр', 'Говорите — я пойму, когда вы закончите'],
+  thinking: ['Обработка', 'Коснитесь, чтобы отменить'],
+  speaking: ['Отвечаю', 'Коснитесь, чтобы перебить'],
+};
 
 export default function Home() {
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
-  const recorderState = useAudioRecorderState(audioRecorder);
-  const [displayedText, setDisplayedText] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [availableVoices, setAvailableVoices] = useState([]);
-  const [selectedVoiceId, setSelectedVoiceId] = useState(undefined);
-  const [englishVoiceId, setEnglishVoiceId] = useState();
-  const [russianVoiceId, setRussianVoiceId] = useState();
+  const jarvis = useJarvis();
+  const { engine, status, settings } = jarvis;
   const [isVoicePickerVisible, setIsVoicePickerVisible] = useState(false);
-  const [chatHistory, setChatHistory] = useState([SYSTEM_MESSAGE]);
 
-  const scrollRef = useRef();
-  const [animatedScale] = useState(() => new Animated.Value(1));
-
-  useVoiceSetup({
-    setAvailableVoices,
-    setEnglishVoiceId,
-    setRussianVoiceId,
-    setSelectedVoiceId,
-  });
-
-  const startPulsing = () => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(animatedScale, {
-          toValue: 1.1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(animatedScale, {
-          toValue: 1.0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  };
-
-  const stopPulsing = () => {
-    animatedScale.stopAnimation();
-    animatedScale.setValue(1);
-  };
-
-  const speak = async (text) => {
-    await speakJarvisResponse({
-      text,
-      selectedVoiceId,
-      availableVoices,
-      scrollRef,
-      setDisplayedText,
-      setSelectedVoiceId,
-      englishVoiceId,
-      russianVoiceId,
-    });
-  };
-
-  const openCamera = async () => {
-    try {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert(
-          'Разрешение отклонено',
-          'Для использования камеры необходимо предоставить разрешение.'
-        );
-        await speak('Сэр, я не могу открыть камеру без вашего разрешения.');
-        return;
-      }
-
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 1,
-      });
-
-      if (!result.canceled) {
-        console.log('Фото сделано:', result.assets[0].uri);
-        await speak('Сэр, фото успешно сделано.');
-      } else {
-        await speak('Сэр, вы отменили съемку.');
-      }
-    } catch (error) {
-      console.error('Ошибка при открытии камеры:', error);
-      Alert.alert(
-        'Ошибка камеры',
-        'Не удалось открыть камеру: ' + error.message
-      );
-      await speak('Сэр, произошла ошибка при попытке открыть камеру.');
-    }
-  };
-
-  const openTelegram = async () => {
-    const tgUrl = 'tg://';
-    const fallbackUrl = 'https://t.me';
-
-    try {
-      await Linking.openURL(tgUrl);
-      await speak('Открываю Telegram, сэр.');
-    } catch {
-      await Linking.openURL(fallbackUrl);
-      await speak('Сэр, Telegram не установлен. Перехожу в браузер.');
-    }
-  };
-
-  const openYoutube = async (query) => {
-    try {
-      if (query) {
-        const youtubeAppUrl = `vnd.youtube://results?search_query=${encodeURIComponent(query)}`;
-
-        await Linking.openURL(youtubeAppUrl);
-        await speak(`Открываю YouTube по запросу: ${query}, сэр.`);
-      } else {
-        const youtubeAppUrl = `vnd.youtube://`;
-
-        await Linking.openURL(youtubeAppUrl);
-        await speak(`Открываю YouTube, сэр.`);
-      }
-    } catch {
-      const fallbackUrl = query
-        ? `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`
-        : `https://youtube.com`;
-
-      await Linking.openURL(fallbackUrl);
-      await speak(
-        `Сэр, приложение YouTube не обнаружено. Открываю в браузере.`
-      );
-    }
-  };
-
-  const record = async () => {
-    setDisplayedText('');
-    setIsLoading(false);
-    stopPulsing();
-    await audioRecorder.prepareToRecordAsync();
-    await audioRecorder.record();
-    startPulsing();
-  };
-
-  const stopRecording = async () => {
-    await audioRecorder.stop();
-    stopPulsing();
-    if (audioRecorder.uri) {
-      await processAudioWithOpenAI({
-        audioUri: audioRecorder.uri,
-        chatHistory,
-        setChatHistory,
-        setDisplayedText,
-        setJarvisResponseText: setDisplayedText,
-        speak,
-        openCamera,
-        openTelegram,
-        openYoutube,
-        setIsLoading,
-      });
-    }
-  };
+  const [title, subtitle] = STATUS_TEXT[status] || STATUS_TEXT.standby;
+  const shownTitle =
+    (status === 'standby' || status === 'listening') && jarvis.userSpeaking
+      ? 'Слышу вас…'
+      : status === 'thinking' && jarvis.activity
+        ? jarvis.activity
+        : title;
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ResponseBox
-        isLoading={isLoading}
-        displayedText={displayedText}
-        scrollRef={scrollRef}
-      />
-
-      <View style={styles.controlsContainer}>
-        <MicrophoneButton
-          onPress={recorderState.isRecording ? stopRecording : record}
-          isRecording={recorderState.isRecording}
-          animatedScale={animatedScale}
-        />
-
-        <TouchableOpacity
-          style={styles.selectVoiceButton}
-          onPress={() => setIsVoicePickerVisible(true)}
-        >
-          <Text style={styles.selectVoiceButtonText}>
-            🎙️ Выбрать голос JARVIS
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
+      <View style={styles.header}>
+        <Text style={styles.brand}>J.A.R.V.I.S.</Text>
+        <View style={styles.statusPill}>
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: STATUS_COLORS[status] },
+            ]}
+          />
+          <Text style={styles.statusPillText}>
+            {status === 'off' ? 'OFFLINE' : 'ONLINE'}
           </Text>
-        </TouchableOpacity>
+        </View>
+      </View>
 
-        <TouchableOpacity
-          style={styles.clearChatButton}
-          onPress={() => {
-            setChatHistory([SYSTEM_MESSAGE]);
-            setDisplayedText('Жду ваших указаний, сэр.');
-            Alert.alert('Чат очищен', 'История разговора сброшена.');
-          }}
-        >
-          <Text style={styles.clearChatButtonText}>🗑 Очистить чат</Text>
-        </TouchableOpacity>
+      <View style={styles.reactorArea}>
+        <ArcReactor
+          status={status}
+          level={jarvis.level}
+          userSpeaking={jarvis.userSpeaking}
+          onPress={() => engine.tap()}
+        />
+        <Text style={[styles.statusTitle, { color: STATUS_COLORS[status] }]}>
+          {shownTitle}
+        </Text>
+        <Text style={styles.statusSubtitle}>{subtitle}</Text>
+        {jarvis.error && <Text style={styles.errorText}>{jarvis.error}</Text>}
+      </View>
 
-        <TouchableOpacity
-          style={styles.stopCon}
-          onPress={() => {
-            Speech.stop();
-            setDisplayedText('');
-          }}
-        >
-          <Text style={styles.stop}>⛔️ Остановить</Text>
-        </TouchableOpacity>
+      <Transcript messages={jarvis.messages} />
+
+      <View style={styles.controls}>
+        <ControlButton
+          icon={settings.micEnabled ? '🎙️' : '🔇'}
+          label={settings.micEnabled ? 'Микрофон' : 'Выключен'}
+          active={settings.micEnabled}
+          onPress={() => engine.setMicEnabled(!settings.micEnabled)}
+        />
+        <ControlButton
+          icon="🗣️"
+          label="Голос"
+          onPress={() => setIsVoicePickerVisible(true)}
+        />
+        <ControlButton
+          icon="🧹"
+          label="Новый диалог"
+          onPress={() => engine.clearConversation()}
+        />
       </View>
 
       <VoicePickerModal
         isVisible={isVoicePickerVisible}
-        availableVoices={availableVoices}
-        selectedVoiceId={selectedVoiceId}
-        setSelectedVoiceId={setSelectedVoiceId}
+        deviceVoices={jarvis.deviceVoices}
+        selected={settings.voice}
+        onSelect={(voice) => engine.setVoice(voice)}
         onClose={() => setIsVoicePickerVisible(false)}
       />
     </SafeAreaView>
+  );
+}
+
+function ControlButton({ icon, label, onPress, active }) {
+  return (
+    <TouchableOpacity
+      style={[styles.controlButton, active && styles.controlButtonActive]}
+      onPress={onPress}
+    >
+      <Text style={styles.controlIcon}>{icon}</Text>
+      <Text style={styles.controlLabel}>{label}</Text>
+    </TouchableOpacity>
   );
 }

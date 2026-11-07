@@ -43,6 +43,23 @@ export default {
             'Allow $(PRODUCT_NAME) to access your microphone.',
         },
       ],
+      [
+        'expo-camera',
+        {
+          cameraPermission:
+            'Allow $(PRODUCT_NAME) to use the camera to see what you ask about.',
+          barcodeScannerEnabled: false,
+        },
+      ],
+      [
+        'expo-image-picker',
+        {
+          cameraPermission:
+            'Allow $(PRODUCT_NAME) to use the camera to see what you ask about.',
+          photosPermission:
+            'Allow $(PRODUCT_NAME) to analyse photos you ask about.',
+        },
+      ],
     ],
   },
 };

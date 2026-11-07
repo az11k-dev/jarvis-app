@@ -75,7 +75,7 @@ export class JarvisBrain {
         let output;
         try {
           const args = call.arguments ? JSON.parse(call.arguments) : {};
-          const result = await runTool(call.name, args);
+          const result = await runTool(call.name, args, { signal });
           output = result.output;
           if (result.after) after.push(result.after);
           if (result.endConversation) endConversation = true;

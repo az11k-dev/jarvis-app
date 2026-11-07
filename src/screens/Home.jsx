@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ArcReactor, { STATUS_COLORS } from '../components/ArcReactor';
 import Transcript from '../components/Transcript';
+import VisionScanner from '../components/VisionScanner';
 import VoicePickerModal from '../components/VoicePickerModal';
 import { useJarvis } from '../hooks/useJarvis';
 import { styles } from '../styles/mainStyles';
@@ -88,6 +89,7 @@ export default function Home() {
         onSelect={(voice) => engine.setVoice(voice)}
         onClose={() => setIsVoicePickerVisible(false)}
       />
+      <VisionScanner />
     </SafeAreaView>
   );
 }

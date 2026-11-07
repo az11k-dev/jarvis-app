@@ -1,10 +1,12 @@
 import { Alert, Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { GITHUB_OWNER } from '../config/jarvis';
+import { GITHUB_OWNER, VISION_PHOTO_QUALITY } from '../config/jarvis';
 import { getLatestCommits } from '../core/github/commits';
 import { createGitHubRepo } from '../core/github/createRepo';
 import { deleteGitHubRepo } from '../core/github/deleteRepo';
 import { scheduleReminder } from './notificationsService';
+import { analyzeImage } from './openai';
+import { scanWithCamera } from './scanner';
 
 const fn = (name, description, properties = {}, required = []) => ({
   type: 'function',
@@ -21,7 +23,34 @@ const fn = (name, description, properties = {}, required = []) => ({
 /** Tool schemas sent to the model. */
 export const TOOL_DEFINITIONS = [
   { type: 'web_search' },
-  fn('open_camera', 'Open the phone camera to take a photo.'),
+  fn(
+    'analyze_image',
+    'See through the phone camera: JARVIS opens its scanner and takes the photo by itself, then you get a description of it. Use whenever the user asks what they are looking at, to scan, identify or check something, to read or translate text, a sign, a label or a document, to count things, or to help with whatever is in front of them.',
+    {
+      question: {
+        type: 'string',
+        description:
+          'What the user wants to know about the photo, in the user language.',
+      },
+      source: {
+        type: 'string',
+        enum: ['camera', 'gallery'],
+        description:
+          'camera to take a new photo (default), gallery when the user refers to an existing photo.',
+      },
+      facing: {
+        type: 'string',
+        enum: ['back', 'front'],
+        description:
+          'back camera (default) for things in front of the user; front (selfie) camera when the question is about the user themselves: how they look, what they are wearing.',
+      },
+    },
+    ['question', 'source', 'facing']
+  ),
+  fn(
+    'open_camera',
+    'Just open the camera app for the user to take a photo themselves, without analysing it.'
+  ),
   fn('open_telegram', 'Open the Telegram app.'),
   fn(
     'open_youtube',
@@ -101,6 +130,20 @@ async function launchCamera() {
   await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
 }
 
+/** Picks an existing photo. Returns base64 JPEG, or null if cancelled. */
+async function pickFromGallery() {
+  const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (status !== 'granted') throw new Error('No access to the photo library.');
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['images'],
+    quality: VISION_PHOTO_QUALITY,
+    base64: true,
+    exif: false,
+  });
+  if (result.canceled || !result.assets?.[0]?.base64) return null;
+  return result.assets[0].base64;
+}
+
 function confirmDelete(name) {
   return new Promise((resolve) => {
     Alert.alert(
@@ -120,8 +163,22 @@ function confirmDelete(name) {
  * `after` runs once JARVIS has finished speaking (used for anything that
  * switches to another app, so the reply isn't cut off).
  */
-export async function runTool(name, args) {
+export async function runTool(name, args, { signal } = {}) {
   switch (name) {
+    case 'analyze_image': {
+      const base64 =
+        args.source === 'gallery'
+          ? await pickFromGallery()
+          : await scanWithCamera({ facing: args.facing, signal });
+      if (!base64) return { output: { status: 'cancelled_by_user' } };
+      signal?.throwIfAborted?.();
+      const description = await analyzeImage(
+        { base64, question: args.question },
+        { signal }
+      );
+      return { output: { analysis: description || 'Nothing recognised.' } };
+    }
+
     case 'open_camera':
       return { output: { status: 'opening_after_reply' }, after: launchCamera };
 

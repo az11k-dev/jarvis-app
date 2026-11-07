@@ -76,14 +76,14 @@ export async function transcribe(wavBytes, { signal } = {}) {
 
 /** One call to the Responses API. Returns the raw response object. */
 export async function createResponse(
-  { instructions, input, tools },
+  { model = MODELS.chat, instructions, input, tools },
   { signal } = {}
 ) {
   const res = await fetch(`${API}/responses`, {
     method: 'POST',
     headers: { ...authHeaders(), 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: MODELS.chat,
+      model,
       instructions,
       input,
       tools,
@@ -94,6 +94,48 @@ export async function createResponse(
   });
   if (!res.ok) throw new Error(`OpenAI error: ${await readError(res)}`);
   return res.json();
+}
+
+const VISION_INSTRUCTIONS = `
+You are the visual sensor of J.A.R.V.I.S. You receive one photo from the user's phone camera and the user's question about it.
+Report what is relevant to the question, factually and compactly: identify objects, products, plants, animals, places; read any visible text verbatim (and translate it if asked); give counts, colours, condition, notable details and possible hazards.
+Do not identify real people by their face; you may describe them.
+If the photo is blurry, too dark or does not show what was asked, say so plainly.
+Answer in the language of the question. Plain text, no markdown.
+`.trim();
+
+/** Analyses a JPEG (base64) with the vision model and returns plain text. */
+export async function analyzeImage({ base64, question }, { signal } = {}) {
+  const response = await createResponse(
+    {
+      model: MODELS.vision,
+      instructions: VISION_INSTRUCTIONS,
+      input: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'input_text',
+              text: question || 'What is in this photo?',
+            },
+            {
+              type: 'input_image',
+              image_url: `data:image/jpeg;base64,${base64}`,
+              detail: 'auto',
+            },
+          ],
+        },
+      ],
+    },
+    { signal }
+  );
+  return (response.output || [])
+    .filter((item) => item.type === 'message')
+    .flatMap((item) => item.content || [])
+    .filter((c) => c.type === 'output_text')
+    .map((c) => c.text)
+    .join('')
+    .trim();
 }
 
 /** Text-to-speech. Writes an mp3 to the cache and returns its File. */

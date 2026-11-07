@@ -64,6 +64,12 @@ const isNoise = (text) =>
   isPromptEcho(text) ||
   TRANSCRIPT_HALLUCINATIONS.some((re) => re.test(text.trim()));
 
+// Status line shown under the core while a tool runs.
+const TOOL_ACTIVITY = {
+  web_search: 'Ищу в сети…',
+  analyze_image: 'Анализирую…',
+};
+
 let messageId = 0;
 
 export class JarvisEngine {
@@ -226,6 +232,10 @@ export class JarvisEngine {
       // the mic anyway, so stop cleanly and stop talking.
       this.stopMic();
       voiceOutput.stop();
+    } else if (this.status === 'thinking' || this.status === 'speaking') {
+      // Back mid-turn, e.g. from the camera during analyze_image: reopen the
+      // mic but leave the turn's state alone; it moves on when it finishes.
+      this.startMic(this.status);
     } else if (this.status !== 'off') {
       this.startMic(this.status === 'listening' ? 'listening' : 'standby');
     } else if (this.micFailed && this.snapshot.settings.micEnabled) {
@@ -450,7 +460,7 @@ export class JarvisEngine {
       signal,
       onToolStart: (name) =>
         this.set({
-          activity: name === 'web_search' ? 'Ищу в сети…' : 'Выполняю…',
+          activity: TOOL_ACTIVITY[name] || 'Выполняю…',
         }),
     });
     if (turn !== this.turn) return;

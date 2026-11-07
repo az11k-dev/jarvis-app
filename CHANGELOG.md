@@ -17,10 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Neural JARVIS voice (OpenAI TTS) with sentence-by-sentence playback and device-voice fallback
 - Arc-reactor HUD with conversation transcript; voice and mic settings persist between launches
 - `open_url` action; reminders are read aloud by JARVIS when they fire
+- Vision: `analyze_image` tool — JARVIS opens an in-app scanner (`expo-camera`) that shoots by itself after focusing — back or selfie camera — or picks from the gallery, sends the photo to a vision model and reports what it sees, reads or translates text (`EXPO_PUBLIC_OPENAI_VISION_MODEL` overrides the model)
 - Background listening on Android: a microphone foreground service (local module `modules/jarvis-background`) keeps the wake word working with the app in the background or the screen off, with a «Выключить» action in its notification
 
 ### Fixed
 
+- Returning to the app in the middle of a turn (e.g. from the camera) reset JARVIS to standby while it was still thinking
 - Repository names with dashes were mangled (markdown stripping removed `-`)
 - Selected voice was overwritten on every reply
 

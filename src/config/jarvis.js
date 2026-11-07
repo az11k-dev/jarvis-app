@@ -9,6 +9,11 @@ export const GITHUB_DEFAULT_REPO = 'jarvis-app';
 export const MODELS = {
   // Fast non-reasoning model with function calling + built-in web search.
   chat: process.env.EXPO_PUBLIC_OPENAI_MODEL || 'gpt-6-luna',
+  // Analyses camera photos (analyze_image tool). Must accept image input.
+  vision:
+    process.env.EXPO_PUBLIC_OPENAI_VISION_MODEL ||
+    process.env.EXPO_PUBLIC_OPENAI_MODEL ||
+    'gpt-6-luna',
   transcribe: 'gpt-4o-mini-transcribe',
   tts: 'gpt-4o-mini-tts',
 };
@@ -40,6 +45,13 @@ export const VAD = {
   // Mic is ignored this long after JARVIS stops talking (speaker echo tail).
   echoGuardMs: 350,
 };
+
+// Photos for analyze_image. JPEG quality keeps uploads to ~1–2 MB.
+export const VISION_PHOTO_QUALITY = 0.5;
+
+// The scanner shoots by itself: it waits settleMs after the camera is ready
+// (autofocus + exposure), and gives up if the camera isn't ready in time.
+export const VISION_SCAN = { settleMs: 1200, readyTimeoutMs: 8000 };
 
 // After a bare "Jarvis" (or a tap on the core), how long JARVIS waits for
 // the command before going back to standby.

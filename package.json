@@ -11,37 +11,28 @@
     "prepare": "husky"
   },
   "dependencies": {
-    "@react-native-community/cli": "^19.1.0",
-    "@react-native-voice/voice": "^3.2.4",
-    "axios": "^1.10.0",
-    "expo": "^54.0.35",
-    "expo-asset": "~12.0.13",
-    "expo-audio": "~1.1.1",
-    "expo-av": "~16.0.8",
-    "expo-blur": "~15.0.8",
-    "expo-camera": "~17.0.10",
-    "expo-clipboard": "~8.0.8",
-    "expo-dev-client": "~6.0.21",
-    "expo-device": "~8.0.10",
-    "expo-file-system": "~19.0.23",
-    "expo-image-picker": "~17.0.11",
-    "expo-local-authentication": "~17.0.8",
-    "expo-notifications": "~0.32.17",
-    "expo-speech": "~14.0.8",
-    "expo-status-bar": "~3.0.9",
-    "openai": "^5.9.0",
-    "react": "^19.0.0",
-    "react-dom": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-background-actions": "^4.0.1",
-    "react-native-markdown-display": "^7.0.2",
-    "react-native-safe-area-context": "~5.6.0",
-    "react-native-tts": "^4.1.1"
+    "expo": "^58.0.0",
+    "expo-asset": "~58.0.20",
+    "expo-audio": "~58.0.11",
+    "expo-blur": "~58.0.5",
+    "expo-clipboard": "~58.0.4",
+    "expo-dev-client": "~58.0.18",
+    "expo-device": "~58.0.5",
+    "expo-image-picker": "~58.0.10",
+    "expo-local-authentication": "~58.0.2",
+    "expo-notifications": "~58.1.8",
+    "expo-speech": "~58.0.3",
+    "expo-splash-screen": "~58.0.13",
+    "expo-system-ui": "~58.0.7",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native": "0.88.1",
+    "react-native-safe-area-context": "~5.11.1"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "eslint": "^9.39.4",
-    "eslint-config-expo": "^56.0.4",
+    "eslint-config-expo": "~58.0.4",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
     "prettier": "^3.9.4"
@@ -55,19 +46,5 @@
     "*.{json,md,css}": [
       "prettier --write"
     ]
-  },
-  "expo": {
-    "doctor": {
-      "reactNativeDirectoryCheck": {
-        "exclude": [
-          "react-native-background-actions",
-          "react-native-tts",
-          "@react-native-voice/voice"
-        ]
-      },
-      "appConfigFieldsNotSyncedCheck": {
-        "enabled": false
-      }
-    }
   }
 }

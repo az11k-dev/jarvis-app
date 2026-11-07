@@ -17,6 +17,18 @@ const STATUS_TEXT = {
   speaking: ['Отвечаю', 'Коснитесь, чтобы перебить'],
 };
 
+const modelName = (id) => {
+  if (id === 'stt') return 'распознавание речи';
+  if (id.startsWith('piper-en-')) return 'английский голос';
+  return 'русский голос';
+};
+
+function downloadLine(speech) {
+  if (!speech?.downloading) return null;
+  const name = modelName(speech.downloading);
+  return `Загружаю ${name} для работы офлайн… ${Math.round(speech.progress * 100)}%`;
+}
+
 export default function Home() {
   const jarvis = useJarvis();
   const { engine, status, settings } = jarvis;
@@ -58,6 +70,9 @@ export default function Home() {
           {shownTitle}
         </Text>
         <Text style={styles.statusSubtitle}>{subtitle}</Text>
+        {downloadLine(jarvis.speech) && (
+          <Text style={styles.downloadText}>{downloadLine(jarvis.speech)}</Text>
+        )}
         {jarvis.error && <Text style={styles.errorText}>{jarvis.error}</Text>}
       </View>
 
@@ -85,8 +100,9 @@ export default function Home() {
       <VoicePickerModal
         isVisible={isVoicePickerVisible}
         deviceVoices={jarvis.deviceVoices}
+        installedModels={jarvis.speech.installed}
         selected={settings.voice}
-        onSelect={(voice) => engine.setVoice(voice)}
+        onSelect={(voice, lang) => engine.setVoice(voice, lang)}
         onClose={() => setIsVoicePickerVisible(false)}
       />
       <VisionScanner />

@@ -1,0 +1,28 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.jarvisspeech'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.jarvisspeech"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+  }
+}
+
+repositories {
+  maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+  // On-device speech recognition + synthesis (onnxruntime inside).
+  // Pinned to 1.13.x: 2.0 removed the espeak-ng frontend that Piper and
+  // Kokoro voices need to turn text into phonemes.
+  implementation 'com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.8'
+  // Unpacks the .tar.bz2 model archives while they download.
+  implementation 'org.apache.commons:commons-compress:1.27.1'
+}

@@ -8,7 +8,8 @@ import * as Speech from 'expo-speech';
  * makes the phone say the phrase out loud through its speaker, so the
  * microphone hears it exactly like a person talking. Engine state changes
  * are logged to logcat (tag ReactNativeJS) with a [jarvis] prefix;
- * `exp+jarvis-app://debug?telemetry=on` adds per-second mic levels.
+ * `exp+jarvis-app://debug?telemetry=on` adds per-second mic levels;
+ * `?say=<text>` makes JARVIS itself say the text (tests his voice).
  */
 export function attachDebugBridge(engine) {
   let last = {};
@@ -56,6 +57,23 @@ export function attachDebugBridge(engine) {
   const onUrl = ({ url }) => {
     const toggle = /[?&]telemetry=(on|off)/.exec(url || '');
     if (toggle) telemetryOn = toggle[1] === 'on';
+    // ?voice=en:en-alan or ?voice=ru:ruslan picks an on-device voice.
+    const pick = /[?&]voice=(ru|en):([\w-]+)/.exec(url || '');
+    if (pick) {
+      const current = engine.getSnapshot().settings?.voice;
+      const base = current?.engine === 'local' ? current : {};
+      const [, lang, id] = pick;
+      console.log(`[jarvis] debug voice: ${lang}=${id}`);
+      engine.setVoice({ ...base, engine: 'local', [lang]: id }, lang);
+      return;
+    }
+    const say = /[?&]say=([^&]+)/.exec(url || '');
+    if (say) {
+      const text = decodeURIComponent(say[1].replace(/\+/g, ' '));
+      console.log(`[jarvis] debug say: ${text}`);
+      engine.announce(text);
+      return;
+    }
     const match = /[?&]speak=([^&]+)/.exec(url || '');
     if (!match) return;
     const text = decodeURIComponent(match[1].replace(/\+/g, ' '));

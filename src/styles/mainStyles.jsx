@@ -63,6 +63,12 @@ export const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
   },
+  downloadText: {
+    marginTop: 8,
+    color: COLORS.muted,
+    fontSize: 12,
+    textAlign: 'center',
+  },
   errorText: {
     marginTop: 8,
     color: COLORS.danger,

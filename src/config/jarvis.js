@@ -14,8 +14,8 @@ export const MODELS = {
     process.env.EXPO_PUBLIC_OPENAI_VISION_MODEL ||
     process.env.EXPO_PUBLIC_OPENAI_MODEL ||
     'gpt-6-luna',
+  // Fallback only, used while the on-device recognizer is still downloading.
   transcribe: 'gpt-4o-mini-transcribe',
-  tts: 'gpt-4o-mini-tts',
 };
 
 // Microphone stream format. 16 kHz mono PCM is what speech models want and
@@ -57,9 +57,14 @@ export const VISION_SCAN = { settleMs: 1200, readyTimeoutMs: 8000 };
 // the command before going back to standby.
 export const FOLLOW_UP_WINDOW_MS = 8000;
 
-// Spoken forms of the wake word as speech-to-text tends to spell them.
+// Spoken forms of the wake word as the on-device recognizer spells them,
+// collected from real tests: it blurs or drops the "в" (Джарес, Джарыз,
+// Джарвейс), doubles the "р" (Джаррез, Джаррес), mixes alphabets (Джарvс),
+// hears "б" (Джабись) or "чарл" (Чарлись), and in English mangles the name
+// (Jarres, Jovis, Joraus). A vowel or "в" must follow the "р" so ordinary
+// words (дерзкий, jersey, jars) don't wake JARVIS.
 export const WAKE_WORD_PATTERN =
-  /^(дж?[аеэ]рв[иеэы]с\S*|жарвис\S*|jarvis\S*|jervis\S*|javis|jarvi|jarvice)$/i;
+  /^(дж?[аеэ][рp]{1,2}(?:[вv][аеиэыя]?|[аеиэыя])й?[сзш]\S*|дж[аеэ]б[иы]с\S*|ч[аеэ]рл[иеыя]с\S*|ж[аеэ]рв[иеэы][сз]\S*|j[aeo](?:rr?|rv|v)[aeiouy]{1,2}[sz]\S{0,2}|javis|jarvi|jarvice)$/i;
 
 // Words people put around the wake word that don't make a command on their own.
 export const WAKE_FILLERS = new Set([
@@ -99,25 +104,54 @@ export const TRANSCRIPT_HALLUCINATIONS = [
   /^[.…\s]*$/,
 ];
 
-export const OPENAI_VOICES = [
-  { id: 'onyx', label: 'Onyx — глубокий, спокойный' },
-  { id: 'ash', label: 'Ash — чёткий, уверенный' },
-  { id: 'echo', label: 'Echo — мягкий' },
-  { id: 'fable', label: 'Fable — британский рассказчик' },
-  { id: 'sage', label: 'Sage — ровный' },
-  { id: 'verse', label: 'Verse — выразительный' },
-  { id: 'alloy', label: 'Alloy — нейтральный' },
-  { id: 'ballad', label: 'Ballad — тёплый' },
+// ── On-device speech (sherpa-onnx, see modules/jarvis-speech) ───────────
+// Models download once on first launch into the app's files folder.
+
+const MODEL_RELEASES =
+  'https://github.com/k2-fsa/sherpa-onnx/releases/download';
+
+// `voice` is the Piper voice name, e.g. 'ru_RU-ruslan-medium'.
+const piper = (voice, sizeMb) => ({
+  url: `${MODEL_RELEASES}/tts-models/vits-piper-${voice}.tar.bz2`,
+  sizeMb,
+  exclude: ['MODEL_CARD'],
+});
+
+export const SPEECH_MODELS = {
+  // Speech-to-text: NeMo FastConformer transducer, Russian + English (and 8
+  // more European languages), with punctuation.
+  stt: {
+    url: `${MODEL_RELEASES}/asr-models/sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2`,
+    sizeMb: 101,
+    exclude: ['test_wavs/'],
+  },
+  // Voices (Piper, ~0.1 s per second of speech on a Snapdragon 855). fp32 on
+  // purpose: the int8 builds are smaller but slower on CPU.
+  'piper-ruslan': piper('ru_RU-ruslan-medium', 64),
+  'piper-en-alan': piper('en_GB-alan-medium', 64),
+};
+
+export const STT_THREADS = 2;
+export const TTS_THREADS = 4;
+
+// `id` picks the model `piper-<id>`; `model` is the .onnx inside it.
+export const RUSSIAN_VOICES = [
+  { id: 'ruslan', model: 'ru_RU-ruslan-medium', label: 'Руслан — мужской' },
 ];
 
-export const DEFAULT_VOICE = { engine: 'openai', id: 'onyx' };
+export const ENGLISH_VOICES = [
+  { id: 'en-alan', model: 'en_GB-alan-medium', label: 'Alan — British' },
+];
 
-export const TTS_INSTRUCTIONS = `
-You are J.A.R.V.I.S., a refined British AI butler.
-Voice: calm, composed, articulate, quietly confident, with dry understated wit.
-Pace: measured and smooth, never rushed; slight warmth when addressing "sir".
-If the text is in Russian, speak natural fluent Russian in the same composed manner.
-`.trim();
+// Russian text is spoken by `ru`, English text by `en`.
+export const DEFAULT_VOICE = {
+  engine: 'local',
+  ru: 'ruslan',
+  en: 'en-alan',
+};
+
+// Speaking rate for on-device voices (1 = model default).
+export const LOCAL_VOICE_SPEED = 1.0;
 
 // Short phrases JARVIS uses when woken without a command.
 export const ACK_PHRASES = {

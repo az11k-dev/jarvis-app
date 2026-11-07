@@ -2,7 +2,7 @@ import { createAudioPlayer } from 'expo-audio';
 import { File, Paths } from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { DEFAULT_VOICE } from '../config/jarvis';
-import { synthesizeSpeech } from './openai';
+import { localSpeech } from './localSpeech';
 
 const isRussian = (text) => /[а-яё]/i.test(text);
 
@@ -54,9 +54,10 @@ function safeDelete(file) {
 }
 
 /**
- * JARVIS's voice. Uses OpenAI neural TTS when available and falls back to
- * the device's speech engine. `speak()` resolves when speech has finished
- * (or was stopped).
+ * JARVIS's voice. Speaks with the on-device neural voices (Piper: Ruslan
+ * for Russian, Alan for English) and falls back to the device's speech engine
+ * for anything they can't say yet (e.g. while a model is downloading).
+ * `speak()` resolves when speech has finished (or was stopped).
  */
 class VoiceOutput {
   voice = DEFAULT_VOICE;
@@ -81,50 +82,64 @@ class VoiceOutput {
     const generation = this.generation;
     const cancelled = () => generation !== this.generation;
 
-    if (this.voice.engine === 'openai') {
-      try {
-        await this.speakNeural(text, cancelled, cacheable);
-        return;
-      } catch (e) {
-        if (cancelled()) return;
-        console.warn('Neural TTS failed, using device voice:', e.message);
-      }
+    if (this.voice.engine === 'local' && localSpeech.supported) {
+      await this.speakLocal(text, cancelled, cacheable);
+    } else {
+      await this.speakDevice(text);
     }
-    if (!cancelled()) await this.speakDevice(text);
   }
 
-  async speakNeural(text, cancelled, cacheable) {
-    const voice = this.voice.id;
-
-    if (cacheable) {
-      const file = new File(Paths.cache, `say-${voice}-${hash(text)}.mp3`);
-      if (!file.exists) await synthesizeSpeech(text, voice, { file });
-      if (!cancelled()) await this.play(file.uri);
-      return;
-    }
-
-    const chunks = chunkForSpeech(text);
-    const pending = chunks.map(() => null);
-    const synth = (i) => {
-      pending[i] ??= synthesizeSpeech(chunks[i], voice);
-      // Prefetched chunks may fail before we await them.
-      pending[i].catch(() => {});
-      return pending[i];
+  /**
+   * Sentence by sentence: the next chunk is synthesized while the current
+   * one plays. A chunk the local voices can't produce goes to the device
+   * voice instead.
+   */
+  async speakLocal(text, cancelled, cacheable) {
+    const chunks = cacheable ? [text] : chunkForSpeech(text);
+    const pending = [];
+    const synth = (i) =>
+      (pending[i] ??= this.synthLocal(chunks[i], cacheable).then(
+        (file) => ({ file }),
+        (error) => ({ error })
+      ));
+    const discard = (result) => {
+      if (!cacheable) safeDelete(result?.file);
     };
 
     for (let i = 0; i < chunks.length; i++) {
-      const file = await synth(i);
+      const result = await synth(i);
       if (i + 1 < chunks.length) synth(i + 1);
       try {
-        if (!cancelled()) await this.play(file.uri);
+        if (cancelled()) break;
+        if (result.error) {
+          console.warn(
+            'Local voice failed, using device voice:',
+            result.error.message
+          );
+          await this.speakDevice(chunks[i]);
+        } else {
+          await this.play(result.file.uri);
+        }
       } finally {
-        safeDelete(file);
+        discard(result);
       }
-      if (cancelled()) {
-        pending.slice(i + 1).forEach((p) => p?.then(safeDelete, () => {}));
-        return;
-      }
+      if (cancelled()) break;
     }
+    // Clean up chunks synthesized ahead that will never play.
+    pending.slice(1).forEach((p) => p?.then(discard));
+  }
+
+  async synthLocal(chunk, cacheable) {
+    const lang = isRussian(chunk) ? 'ru' : 'en';
+    const voiceId = lang === 'ru' ? this.voice.ru : this.voice.en;
+    const file = cacheable
+      ? new File(Paths.cache, `say-${voiceId}-${hash(chunk)}.wav`)
+      : new File(
+          Paths.cache,
+          `tts-${Date.now()}-${Math.random().toString(36).slice(2)}.wav`
+        );
+    if (cacheable && file.exists) return file;
+    return localSpeech.synthesize(chunk, this.voice, lang, file);
   }
 
   play(uri) {

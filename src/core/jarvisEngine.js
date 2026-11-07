@@ -17,6 +17,7 @@ import {
   WAKE_WORD_PATTERN,
 } from '../config/jarvis';
 import { JarvisBrain } from '../services/brain';
+import { localSpeech, SpeechNotReadyError } from '../services/localSpeech';
 import { MissingApiKeyError, transcribe } from '../services/openai';
 import { loadSettings, saveSettings } from '../services/settings';
 import { cleanForSpeech, voiceOutput } from '../services/voice';
@@ -91,6 +92,7 @@ export class JarvisEngine {
     messages: [],
     settings: { voice: null, micEnabled: true },
     deviceVoices: [],
+    speech: localSpeech.state, // on-device model downloads / readiness
     error: null,
     activity: null,
   };
@@ -145,6 +147,13 @@ export class JarvisEngine {
     voiceOutput.setVoice(settings.voice);
     this.set({ settings });
 
+    this.unsubscribeSpeech?.();
+    this.unsubscribeSpeech = localSpeech.subscribe((speech) =>
+      this.set({ speech })
+    );
+    localSpeech.start(settings.voice);
+    localSpeech.preload(settings.voice);
+
     Speech.getAvailableVoicesAsync()
       .then((voices) =>
         this.set({
@@ -178,6 +187,8 @@ export class JarvisEngine {
 
   dispose() {
     this.disposed = true;
+    this.unsubscribeSpeech?.();
+    this.unsubscribeSpeech = null;
     this.cancelTurn();
     this.stopMic();
   }
@@ -280,10 +291,22 @@ export class JarvisEngine {
     }
   }
 
-  async setVoice(voice) {
+  /** `lang` ('ru' | 'en') picks the language of the spoken preview. */
+  async setVoice(voice, lang) {
     voiceOutput.setVoice(voice);
     await this.updateSettings({ voice });
-    const ru = voice.engine === 'openai' || voice.language?.startsWith('ru');
+    localSpeech.ensureForVoice(voice);
+    const ru = lang ? lang === 'ru' : !!voice.language?.startsWith('ru');
+    if (voice.engine === 'local' && localSpeech.supported) {
+      // Preview in the new voice itself, not the device fallback, even if
+      // it has to download first (progress shows under the core).
+      try {
+        await localSpeech.ensureVoice(voice, ru ? 'ru' : 'en');
+      } catch {
+        // download failed: the preview falls back to the device voice
+      }
+      if (this.snapshot.settings.voice !== voice) return; // picked another
+    }
     const previous = await this.say(
       ru ? 'Так лучше, сэр?' : 'How is this, sir?',
       { cacheable: true }
@@ -388,7 +411,7 @@ export class JarvisEngine {
       if (wasListening)
         this.set({ status: 'thinking', activity: 'Распознаю…' });
       const wav = encodeWav(utterance.chunks, utterance.sampleRate);
-      const text = await transcribe(wav, { signal });
+      const text = await this.transcribe(wav, signal);
       if (turn !== this.turn) return;
 
       if (this.snapshot.error === 'Нет связи с OpenAI')
@@ -425,8 +448,15 @@ export class JarvisEngine {
       await this.converse(text, turn, signal);
     } catch (e) {
       if (turn !== this.turn || signal.aborted) return;
-      console.warn('Jarvis turn failed:', e);
       this.busy = false;
+      if (e instanceof SpeechNotReadyError) {
+        if (wasListening) {
+          this.addMessage('error', 'Модель распознавания речи ещё загружается');
+          this.enterStandby();
+        }
+        return;
+      }
+      console.warn('Jarvis turn failed:', e);
       if (!engaged) {
         // Don't announce errors for background noise heard in standby.
         this.set({
@@ -450,6 +480,16 @@ export class JarvisEngine {
         this.abort = null;
       }
     }
+  }
+
+  /**
+   * On-device speech-to-text. Until its model has downloaded, OpenAI's
+   * transcription stands in (if a key is configured).
+   */
+  async transcribe(wav, signal) {
+    if (localSpeech.sttReady) return localSpeech.transcribe(wav);
+    if (OPENAI_API_KEY) return transcribe(wav, { signal });
+    throw new SpeechNotReadyError();
   }
 
   async converse(text, turn, signal) {

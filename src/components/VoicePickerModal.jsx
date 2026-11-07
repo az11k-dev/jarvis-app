@@ -1,37 +1,59 @@
 import React from 'react';
 import { Modal, SectionList, Text, TouchableOpacity, View } from 'react-native';
-import { OPENAI_VOICES } from '../config/jarvis';
+import {
+  DEFAULT_VOICE,
+  ENGLISH_VOICES,
+  RUSSIAN_VOICES,
+  SPEECH_MODELS,
+} from '../config/jarvis';
 import { styles } from '../styles/mainStyles';
 
 export default function VoicePickerModal({
   isVisible,
   deviceVoices,
+  installedModels,
   selected,
   onSelect,
   onClose,
 }) {
+  // Picking a Russian voice keeps the English one and vice versa.
+  const local = selected?.engine === 'local' ? selected : DEFAULT_VOICE;
+  const sizeNote = (modelId) =>
+    installedModels.includes(modelId)
+      ? ''
+      : ` · скачать ${SPEECH_MODELS[modelId].sizeMb} МБ`;
+
   const sections = [
     {
-      title: 'Нейронный голос JARVIS (OpenAI)',
-      data: OPENAI_VOICES.map((v) => ({
-        engine: 'openai',
-        id: v.id,
-        label: v.label,
+      title: 'Русский голос (на устройстве)',
+      data: RUSSIAN_VOICES.map((v) => ({
+        key: `ru:${v.id}`,
+        label: v.label + sizeNote(`piper-${v.id}`),
+        selected: selected?.engine === 'local' && selected.ru === v.id,
+        voice: { ...local, engine: 'local', ru: v.id },
+        lang: 'ru',
       })),
     },
     {
-      title: 'Голоса устройства (офлайн, быстрее)',
+      title: 'English voice (on device)',
+      data: ENGLISH_VOICES.map((v) => ({
+        key: `en:${v.id}`,
+        label: v.label + sizeNote(`piper-${v.id}`),
+        selected: selected?.engine === 'local' && selected.en === v.id,
+        voice: { ...local, engine: 'local', en: v.id },
+        lang: 'en',
+      })),
+    },
+    {
+      title: 'Голоса устройства (системный синтез)',
       data: deviceVoices.map((v) => ({
-        engine: 'device',
-        id: v.identifier,
-        language: v.language,
+        key: `device:${v.identifier}`,
         label: `${v.name} · ${v.language}${v.quality === 'Enhanced' ? ' · HD' : ''}`,
+        selected: selected?.engine === 'device' && selected.id === v.identifier,
+        voice: { engine: 'device', id: v.identifier, language: v.language },
       })),
     },
   ];
-
-  const isSelected = (item) =>
-    selected?.engine === item.engine && selected?.id === item.id;
 
   return (
     <Modal
@@ -45,7 +67,7 @@ export default function VoicePickerModal({
           <Text style={styles.modalTitle}>Голос JARVIS</Text>
           <SectionList
             sections={sections}
-            keyExtractor={(item) => `${item.engine}:${item.id}`}
+            keyExtractor={(item) => item.key}
             style={styles.voiceList}
             stickySectionHeadersEnabled={false}
             renderSectionHeader={({ section }) => (
@@ -55,9 +77,9 @@ export default function VoicePickerModal({
               <TouchableOpacity
                 style={[
                   styles.voiceItem,
-                  isSelected(item) && styles.selectedVoiceItem,
+                  item.selected && styles.selectedVoiceItem,
                 ]}
-                onPress={() => onSelect(item)}
+                onPress={() => onSelect(item.voice, item.lang)}
               >
                 <Text style={styles.voiceText}>{item.label}</Text>
               </TouchableOpacity>

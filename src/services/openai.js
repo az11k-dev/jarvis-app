@@ -1,11 +1,4 @@
-import { fetch as expoFetch } from 'expo/fetch';
-import { File, Paths } from 'expo-file-system';
-import {
-  MODELS,
-  OPENAI_API_KEY,
-  TRANSCRIBE_PROMPT,
-  TTS_INSTRUCTIONS,
-} from '../config/jarvis';
+import { MODELS, OPENAI_API_KEY, TRANSCRIBE_PROMPT } from '../config/jarvis';
 
 const API = 'https://api.openai.com/v1';
 
@@ -136,30 +129,4 @@ export async function analyzeImage({ base64, question }, { signal } = {}) {
     .map((c) => c.text)
     .join('')
     .trim();
-}
-
-/** Text-to-speech. Writes an mp3 to the cache and returns its File. */
-export async function synthesizeSpeech(text, voice, { signal, file } = {}) {
-  const res = await expoFetch(`${API}/audio/speech`, {
-    method: 'POST',
-    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: MODELS.tts,
-      voice,
-      input: text,
-      instructions: TTS_INSTRUCTIONS,
-      response_format: 'mp3',
-    }),
-    signal,
-  });
-  if (!res.ok) throw new Error(`TTS failed: ${await readError(res)}`);
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  const out =
-    file ??
-    new File(
-      Paths.cache,
-      `tts-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`
-    );
-  await out.write(bytes);
-  return out;
 }

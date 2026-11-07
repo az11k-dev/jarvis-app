@@ -19,9 +19,9 @@
     }
   },
   "submit": {
-  "production": {},
-  "development": {
-    "android": {}
+    "production": {},
+    "development": {
+      "android": {}
+    }
   }
-}
 }

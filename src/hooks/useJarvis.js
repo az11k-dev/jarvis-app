@@ -5,6 +5,7 @@ import * as Notifications from 'expo-notifications';
 import { useKeepAwake } from 'expo-keep-awake';
 import { AUDIO_FORMAT } from '../config/jarvis';
 import { JarvisEngine } from '../core/jarvisEngine';
+import * as Background from '../../modules/jarvis-background';
 
 /** Wires the JARVIS engine to the microphone, app lifecycle and React. */
 export function useJarvis() {
@@ -17,8 +18,16 @@ export function useJarvis() {
     onBuffer: engine.handleBuffer,
   });
 
-  // Keep the screen on so the wake word keeps working while the app is open.
+  // Keep the screen on while the app is open (it also listens in the
+  // background through a foreground service, see modules/jarvis-background).
   useKeepAwake();
+
+  // "Выключить" tapped in the listening notification.
+  useEffect(
+    () =>
+      Background.addStopRequestedListener(() => engine.setMicEnabled(false)),
+    [engine]
+  );
 
   useEffect(() => {
     engine.setLevelListener((value) =>

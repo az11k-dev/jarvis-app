@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Neural JARVIS voice (OpenAI TTS) with sentence-by-sentence playback and device-voice fallback
 - Arc-reactor HUD with conversation transcript; voice and mic settings persist between launches
 - `open_url` action; reminders are read aloud by JARVIS when they fire
+- Background listening on Android: a microphone foreground service (local module `modules/jarvis-background`) keeps the wake word working with the app in the background or the screen off, with a «Выключить» action in its notification
 
 ### Fixed
 

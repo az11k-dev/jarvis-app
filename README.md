@@ -28,8 +28,13 @@ This is the core version focusing on voice input and intelligent response.
 The microphone streams raw 16 kHz PCM (`expo-audio` `useAudioStream`) into an on-device
 voice-activity detector (`src/audio/vad.js`) that adapts to room noise. Only the
 segments where someone actually speaks are sent to OpenAI for transcription. They are
-dropped unless they start with the wake word. The mic is only active while the app
-is in the foreground, and the screen stays on while it's open.
+dropped unless they start with the wake word. The screen stays on while the app is open.
+
+On Android JARVIS keeps listening after you leave the app or turn the screen off: a
+`microphone` foreground service (`modules/jarvis-background`) shows an ongoing
+notification, and tapping **Выключить** there turns the mic off. Some vendors
+(Samsung, Xiaomi…) may still kill background apps; set JARVIS's battery usage to
+_Unrestricted_ if it stops listening after a while.
 
 All tuning (thresholds, command window, models, voices) lives in `src/config/jarvis.js`.
 

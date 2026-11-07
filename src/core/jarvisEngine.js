@@ -3,6 +3,7 @@ import {
   setAudioModeAsync,
 } from 'expo-audio';
 import * as Speech from 'expo-speech';
+import * as Background from '../../modules/jarvis-background';
 import { VoiceActivityDetector } from '../audio/vad';
 import { encodeWav } from '../audio/wav';
 import {
@@ -149,6 +150,9 @@ export class JarvisEngine {
       playsInSilentMode: true,
       allowsRecording: true,
       shouldRouteThroughEarpiece: false,
+      // Keep listening and talking after the user leaves the app.
+      allowsBackgroundRecording: true,
+      shouldPlayInBackground: true,
     });
 
     if (settings.micEnabled) await this.startMic('standby');
@@ -163,10 +167,13 @@ export class JarvisEngine {
   async startMic(status) {
     if (!this.stream || this.disposed) return;
     try {
+      // The microphone can only be opened while the app is visible; a
+      // background service then keeps it open after the user leaves.
       if (!this.stream.isStreaming && this.appActive) await this.stream.start();
       this.micFailed = false;
       this.vad.reset();
       this.set({ status, error: null });
+      if (this.appActive) await this.startBackgroundService();
     } catch (e) {
       console.warn('Mic start failed:', e);
       this.micFailed = true;
@@ -181,12 +188,30 @@ export class JarvisEngine {
       // already stopped
     }
     this.levelListener?.(0);
+    Background.stop().catch(() => {});
+  }
+
+  /** Keeps the mic (and JS) alive in the background via a foreground service. */
+  async startBackgroundService() {
+    if (!Background.isSupported || Background.isRunning()) return;
+    try {
+      await Background.start({
+        title: 'J.A.R.V.I.S.',
+        text: 'Слушаю. Скажите «Джарвис», сэр.',
+        stopLabel: 'Выключить',
+      });
+    } catch (e) {
+      // Usually "app not in the foreground"; retried in setAppActive(true).
+      console.warn('Background listening unavailable:', e);
+    }
   }
 
   setAppActive(active) {
     this.appActive = active;
     if (!active) {
-      // Android won't let us record in the background; also stop talking.
+      if (Background.isRunning()) return; // keep listening in the background
+      // No background service (iOS/web, or it failed) — the OS would cut
+      // the mic anyway, so stop cleanly and stop talking.
       this.stopMic();
       voiceOutput.stop();
     } else if (this.status !== 'off') {

@@ -1,7 +1,6 @@
 import { Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { VISION_PHOTO_QUALITY } from '../config/jarvis';
-import { getLatestCommits } from '../core/github/commits';
 import { scheduleReminder } from './notificationsService';
 import { analyzeImage } from './openai';
 import { scanWithCamera } from './scanner';
@@ -76,18 +75,6 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['text', 'delay_seconds']
-  ),
-  fn(
-    'get_latest_commits',
-    'List the latest commits of a GitHub repository.',
-    {
-      count: { type: 'integer', description: 'How many commits. Default 5.' },
-      repo: {
-        type: 'string',
-        description: 'Repository name. Default jarvis-app.',
-      },
-    },
-    []
   ),
   fn(
     'end_conversation',
@@ -185,17 +172,6 @@ export async function runTool(name, args, { signal } = {}) {
       const at = new Date(Date.now() + seconds * 1000);
       return {
         output: { status: 'scheduled', fires_at: at.toString() },
-      };
-    }
-
-    case 'get_latest_commits': {
-      const commits = await getLatestCommits(args.count || 5, args.repo);
-      return {
-        output: commits.map((c) => ({
-          author: c.author,
-          message: c.message.split('\n')[0],
-          date: c.date,
-        })),
       };
     }
 

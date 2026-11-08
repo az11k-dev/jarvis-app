@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Removed
 
-- Voice commands to create and delete GitHub repositories (`create_github_repo`, `delete_github_repo`); JARVIS keeps read-only `get_latest_commits`, so the token bundled into the app can no longer change your account
+- GitHub voice commands (create or delete a repository, read recent commits) and the `EXPO_PUBLIC_GITHUB_TOKEN_KEY` setting; no GitHub token is bundled into the app anymore
 - Unused dependencies: `openai`, `axios`, `expo-av`, `expo-camera`, `expo-file-system`, `expo-status-bar`, `react-native-tts`, `@react-native-voice/voice`, `react-native-background-actions`, `react-native-markdown-display`, `@react-native-community/cli`
 - Obsolete config: `newArchEnabled`, `edgeToEdgeEnabled` (now always on), manual `appComponentFactory` manifest override
 

@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Hands-free mode: wake word «Джарвис» / "Jarvis", automatic end-of-speech detection, replies only to phrases that start with the wake word, tap-to-interrupt
 - On-device voice activity detection over the raw microphone stream (adaptive noise floor, pre-roll)
 - OpenAI Responses API with function calling and built-in web search, replacing text-command parsing
-- Neural JARVIS voice (OpenAI TTS) with sentence-by-sentence playback and device-voice fallback
+- Neural JARVIS voice: on-device Piper voices (Ruslan for Russian, Alan for English) with sentence-by-sentence playback; falls back to the device voice while a model is downloading and on iOS
 - Arc-reactor HUD with conversation transcript; voice and mic settings persist between launches
 - `open_url` action; reminders are read aloud by JARVIS when they fire
 - `list_reminders` and `cancel_reminder` tools: ask JARVIS which reminders are set, cancel one or move it to another time

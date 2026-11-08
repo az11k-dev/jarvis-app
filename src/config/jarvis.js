@@ -63,11 +63,12 @@ export const CONVERSATION_QUESTION_WINDOW_MS = 15000;
 // Spoken forms of the wake word as the on-device recognizer spells them,
 // collected from real tests: it blurs or drops the "в" (Джарес, Джарыз,
 // Джарвейс), doubles the "р" (Джаррез, Джаррес), mixes alphabets (Джарvс),
-// hears "б" (Джабись) or "чарл" (Чарлись), and in English mangles the name
-// (Jarres, Jovis, Joraus). A vowel or "в" must follow the "р" so ordinary
-// words (дерзкий, jersey, jars) don't wake JARVIS.
+// hears "б" (Джабись), "чарл" (Чарлись), "о" (Джорис) or drops the "Дж"
+// (Арлис), and in English mangles the name (Jarres, Jovis, Joraus). A vowel
+// or "в" must follow the "р" so ordinary words (дерзкий, jersey, jars) don't
+// wake JARVIS.
 export const WAKE_WORD_PATTERN =
-  /^(дж?[аеэ][рp]{1,2}(?:[вv][аеиэыя]?|[аеиэыя])й?[сзш]\S*|дж[аеэ]б[иы]с\S*|ч[аеэ]рл[иеыя]с\S*|ж[аеэ]рв[иеэы][сз]\S*|j[aeo](?:rr?|rv|v)[aeiouy]{1,2}[sz]\S{0,2}|javis|jarvi|jarvice)$/i;
+  /^(дж?[аеэ][рp]{1,2}(?:[вv][аеиэыя]?|[аеиэыя])й?[сзш]\S*|дж[аеэ]б[иы]с\S*|ч[аеэ]рл[иеыя]с\S*|ж[аеэ]рв[иеэы][сз]\S*|джор[иеэы][сз]\S*|арл[иеэы]с\S*|j[aeo](?:rr?|rv|v)[aeiouy]{1,2}[sz]\S{0,2}|javis|jarvi|jarvice)$/i;
 
 // Words people put around the wake word that don't make a command on their own.
 export const WAKE_FILLERS = new Set([

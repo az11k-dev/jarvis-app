@@ -20,7 +20,7 @@ This is the core version focusing on voice input and intelligent response.
 - 🧠 **Tool-calling brain** – OpenAI Responses API with function calling and built-in web search for live facts, weather and news
 - 🔊 **Neural JARVIS voice** – OpenAI TTS styled as a composed British AI butler, with streaming playback by sentence. Falls back to the device voice offline
 - 👁️ **Vision** – _«Джарвис, что это?»_, _"Jarvis, read this"_, _«переведи табличку»_: JARVIS opens its scanner HUD, takes the shot by itself once the focus settles and reports what it sees — objects, products, plants, text read aloud or translated. Say "from the gallery" to analyse an existing photo
-- 🌐 **Actions** – Open YouTube (with search), Telegram, the camera or any website; set reminders that JARVIS reads aloud; create, delete and inspect GitHub repos
+- 🌐 **Actions** – Open YouTube (with search), Telegram, the camera or any website; set reminders that JARVIS reads aloud; hear the latest GitHub commits
 - 🔐 **Secure Access** – Face ID, Touch ID or device password before launch
 - ⚙️ **Cross-Platform** – Expo SDK 58, iOS and Android
 
@@ -116,10 +116,7 @@ EXPO_PUBLIC_GITHUB_TOKEN_KEY=your_github_token
   Powered by `expo-local-authentication`
 
 - ✅ **GitHub Command Integration**
-  Execute developer-oriented voice commands such as:
-  • “Create a repository named _uzbekistan_”
-  • “Show recent commits”
-  • “Delete the repository _uzbekistan_”
+  – “Show recent commits”
 
 - ⏳ **Custom Voice Personality for J.A.R.V.I.S.**
   – Natural-sounding speech with pauses and tone

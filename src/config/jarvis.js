@@ -2,7 +2,6 @@
 // assistant listens, thinks and speaks lives here.
 
 export const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
-export const GITHUB_TOKEN = process.env.EXPO_PUBLIC_GITHUB_TOKEN_KEY;
 export const GITHUB_OWNER = 'az11k-dev';
 export const GITHUB_DEFAULT_REPO = 'jarvis-app';
 

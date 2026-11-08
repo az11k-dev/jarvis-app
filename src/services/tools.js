@@ -1,9 +1,7 @@
-import { Alert, Linking } from 'react-native';
+import { Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { GITHUB_OWNER, VISION_PHOTO_QUALITY } from '../config/jarvis';
+import { VISION_PHOTO_QUALITY } from '../config/jarvis';
 import { getLatestCommits } from '../core/github/commits';
-import { createGitHubRepo } from '../core/github/createRepo';
-import { deleteGitHubRepo } from '../core/github/deleteRepo';
 import { scheduleReminder } from './notificationsService';
 import { analyzeImage } from './openai';
 import { scanWithCamera } from './scanner';
@@ -80,25 +78,6 @@ export const TOOL_DEFINITIONS = [
     ['text', 'delay_seconds']
   ),
   fn(
-    'create_github_repo',
-    `Create a GitHub repository for ${GITHUB_OWNER}.`,
-    {
-      name: {
-        type: 'string',
-        description:
-          'Repository name: lowercase latin letters, digits, dashes.',
-      },
-      private: { type: 'boolean', description: 'Private repo. Default false.' },
-    },
-    ['name']
-  ),
-  fn(
-    'delete_github_repo',
-    `Delete a GitHub repository of ${GITHUB_OWNER}. The app asks the user to confirm on screen.`,
-    { name: { type: 'string', description: 'Repository name.' } },
-    ['name']
-  ),
-  fn(
     'get_latest_commits',
     'List the latest commits of a GitHub repository.',
     {
@@ -142,20 +121,6 @@ async function pickFromGallery() {
   });
   if (result.canceled || !result.assets?.[0]?.base64) return null;
   return result.assets[0].base64;
-}
-
-function confirmDelete(name) {
-  return new Promise((resolve) => {
-    Alert.alert(
-      'Подтвердите удаление',
-      `Удалить репозиторий ${GITHUB_OWNER}/${name}? Это необратимо.`,
-      [
-        { text: 'Отмена', style: 'cancel', onPress: () => resolve(false) },
-        { text: 'Удалить', style: 'destructive', onPress: () => resolve(true) },
-      ],
-      { cancelable: true, onDismiss: () => resolve(false) }
-    );
-  });
 }
 
 /**
@@ -221,21 +186,6 @@ export async function runTool(name, args, { signal } = {}) {
       return {
         output: { status: 'scheduled', fires_at: at.toString() },
       };
-    }
-
-    case 'create_github_repo': {
-      const url = await createGitHubRepo({
-        name: args.name,
-        private: !!args.private,
-      });
-      return { output: { status: 'created', url } };
-    }
-
-    case 'delete_github_repo': {
-      const confirmed = await confirmDelete(args.name);
-      if (!confirmed) return { output: { status: 'cancelled_by_user' } };
-      await deleteGitHubRepo(GITHUB_OWNER, args.name);
-      return { output: { status: 'deleted' } };
     }
 
     case 'get_latest_commits': {

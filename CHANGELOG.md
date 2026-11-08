@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Privacy: in standby the wake word is checked on the device, and only phrases that start with it are sent to OpenAI — background speech (TV, calls, conversations) stays on the phone; a bare «Джарвис» is acknowledged without a cloud round-trip
 - Speech recognition now uses OpenAI `gpt-transcribe` (`EXPO_PUBLIC_OPENAI_TRANSCRIBE_MODEL` overrides it) for better accuracy; the on-device recognizer is the offline fallback when OpenAI is unreachable or takes longer than 8 s
 - Conversation mode: after an answer JARVIS keeps listening for 10 s (15 s if it asked a question) without the wake word; speaking keeps the conversation going, silence, a sign-off («отбой», «спасибо, всё») or opening another app returns it to standby
 - Upgraded Expo SDK 54 → 58 (React Native 0.88, React 19.3) and all Expo modules

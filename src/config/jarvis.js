@@ -21,6 +21,11 @@ export const MODELS = {
 // on-device recognizer. Short phrases normally come back in 1–2 s.
 export const TRANSCRIBE_TIMEOUT_MS = 8000;
 
+// In standby the on-device recognizer checks this much of each utterance
+// for the wake word; only phrases that open with it go to OpenAI. Leaves
+// room for pre-roll and fillers («эй, слушай, Джарвис»).
+export const WAKE_CHECK_MS = 3000;
+
 // Microphone stream format. 16 kHz mono PCM is what speech models want and
 // keeps uploads small.
 export const AUDIO_FORMAT = {

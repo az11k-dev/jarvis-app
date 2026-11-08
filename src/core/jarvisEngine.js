@@ -16,6 +16,7 @@ import {
   TRANSCRIBE_TIMEOUT_MS,
   TRANSCRIPT_HALLUCINATIONS,
   VAD,
+  WAKE_CHECK_MS,
   WAKE_FILLERS,
   WAKE_WORD_PATTERN,
 } from '../config/jarvis';
@@ -424,10 +425,29 @@ export class JarvisEngine {
     let engaged = wasListening;
 
     try {
-      if (wasListening)
+      let text;
+      if (!wasListening) {
+        // Standby: look for the wake word on the device first, so speech
+        // that isn't for JARVIS (TV, calls, people talking) never leaves
+        // the phone.
+        const heard = await this.hearWakeWord(utterance);
+        if (turn !== this.turn) return;
+        if (!heard) {
+          this.busy = false; // not for us
+          return;
+        }
+        engaged = true;
+        // A bare "Jarvis" needs no cloud round-trip, nor does anything
+        // when there is no OpenAI key (transcribe() would go local anyway).
+        if (heard.complete && (heard.bare || !OPENAI_API_KEY)) {
+          text = heard.text;
+        }
+      }
+      if (text === undefined) {
         this.set({ status: 'thinking', activity: 'Распознаю…' });
-      const wav = encodeWav(utterance.chunks, utterance.sampleRate);
-      const text = await this.transcribe(wav, signal);
+        const wav = encodeWav(utterance.chunks, utterance.sampleRate);
+        text = await this.transcribe(wav, signal);
+      }
       if (turn !== this.turn) return;
 
       if (this.snapshot.error === 'Нет связи с OpenAI')
@@ -436,14 +456,13 @@ export class JarvisEngine {
       if (isNoise(text)) {
         this.busy = false;
         if (wasListening) this.resumeListening();
+        else this.enterStandby();
         return;
       }
 
+      // In standby the wake word was already heard on the device; if the
+      // cloud transcript misses it, the phrase is still a command.
       const rest = parseWakeWord(text);
-      if (!wasListening && !rest) {
-        this.busy = false; // not for us
-        return;
-      }
       engaged = true;
       if (rest?.length === 0) {
         // Just "Jarvis" — acknowledge and listen for the command.
@@ -494,6 +513,31 @@ export class JarvisEngine {
         this.abort = null;
       }
     }
+  }
+
+  /**
+   * On-device wake-word check of the first WAKE_CHECK_MS of an utterance
+   * (the wake word must open the phrase, and a cap keeps long TV chatter
+   * cheap). Null unless it starts with the wake word; else the local text,
+   * whether it is a bare "Jarvis", and whether the whole utterance was heard.
+   */
+  async hearWakeWord({ chunks, sampleRate }) {
+    const limit = (WAKE_CHECK_MS / 1000) * sampleRate;
+    const head = [];
+    let samples = 0;
+    for (const chunk of chunks) {
+      if (samples >= limit) break;
+      head.push(chunk);
+      samples += chunk.length;
+    }
+    const text = await localSpeech.transcribe(encodeWav(head, sampleRate));
+    const rest = isNoise(text) ? null : parseWakeWord(text);
+    if (!rest) return null;
+    return {
+      text,
+      bare: rest.length === 0,
+      complete: head.length === chunks.length,
+    };
   }
 
   /**

@@ -26,15 +26,23 @@ const modelName = (id) => {
 function downloadLine(speech) {
   if (!speech?.downloading) return null;
   const name = modelName(speech.downloading);
-  return `Загружаю ${name} для работы офлайн… ${Math.round(speech.progress * 100)}%`;
+  return `Загружаю ${name}… ${Math.round(speech.progress * 100)}%`;
 }
+
+// Android checks the wake word on the device, so voice wake-up waits for
+// the recognizer model; iOS checks it in the cloud transcript instead.
+const voiceWakeReady = (speech) => !speech?.supported || speech.sttReady;
 
 export default function Home() {
   const jarvis = useJarvis();
   const { engine, status, settings } = jarvis;
   const [isVoicePickerVisible, setIsVoicePickerVisible] = useState(false);
 
-  const [title, subtitle] = STATUS_TEXT[status] || STATUS_TEXT.standby;
+  const [title, defaultSubtitle] = STATUS_TEXT[status] || STATUS_TEXT.standby;
+  const subtitle =
+    status === 'standby' && !voiceWakeReady(jarvis.speech)
+      ? 'Коснитесь ядра — «Джарвис» заработает после загрузки модели'
+      : defaultSubtitle;
   const shownTitle =
     (status === 'standby' || status === 'listening') && jarvis.userSpeaking
       ? 'Слышу вас…'

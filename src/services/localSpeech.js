@@ -50,6 +50,7 @@ class LocalSpeech {
   started = false;
 
   state = {
+    supported: Native.isSupported, // false on iOS: no on-device models
     downloading: null, // model id being downloaded
     progress: 0, // 0..1 of the current download
     error: null,

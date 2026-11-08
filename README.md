@@ -22,7 +22,7 @@ This is the core version focusing on voice input and intelligent response.
 - 👁️ **Vision** – _«Джарвис, что это?»_, _"Jarvis, read this"_, _«переведи табличку»_: JARVIS opens its scanner HUD, takes the shot by itself once the focus settles and reports what it sees — objects, products, plants, text read aloud or translated. Say "from the gallery" to analyse an existing photo
 - 🌐 **Actions** – Open YouTube (with search), Telegram, the camera or any website; set reminders that JARVIS reads aloud
 - 🔐 **Secure Access** – Face ID, Touch ID or device password before launch
-- ⚙️ **Cross-Platform** – Expo SDK 58, iOS and Android
+- ⚙️ **Cross-Platform** – Expo SDK 58, iOS and Android (on-device wake word, offline speech and background listening are Android-only for now)
 
 ### How it listens
 
@@ -34,9 +34,15 @@ calls and conversations around it never reach OpenAI. A bare «Джарвис» 
 straight away; a phrase with a command, and everything said while JARVIS is listening
 (after the wake word, a tap on the core, or an answer), is transcribed by OpenAI
 (`gpt-transcribe`). Without a connection, or if OpenAI takes longer than 8 s, the
-on-device recognizer transcribes instead. Voice wake-up needs the on-device model
-(downloaded on first launch); until then, tap the core. The screen stays on while the
-app is open.
+on-device recognizer transcribes instead. On Android, voice wake-up needs the on-device
+model (downloaded on first launch); until then, tap the core. The screen stays on while
+the app is open.
+
+On iOS there is no on-device recognizer yet (`modules/jarvis-speech` is Android-only), so
+in standby every phrase the voice detector picks up is sent to OpenAI and the wake word
+is looked for in the transcript; phrases that don't start with it are dropped. This costs
+more and sends background speech to OpenAI, and without a connection only a tap on the
+core works.
 
 On Android JARVIS keeps listening after you leave the app or turn the screen off: a
 `microphone` foreground service (`modules/jarvis-background`) shows an ongoing

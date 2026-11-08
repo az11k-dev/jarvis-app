@@ -426,10 +426,11 @@ export class JarvisEngine {
 
     try {
       let text;
-      if (!wasListening) {
+      if (!wasListening && localSpeech.supported) {
         // Standby: look for the wake word on the device first, so speech
         // that isn't for JARVIS (TV, calls, people talking) never leaves
-        // the phone.
+        // the phone. Platforms without the on-device recognizer (iOS)
+        // check the cloud transcript instead, below.
         const heard = await this.hearWakeWord(utterance);
         if (turn !== this.turn) return;
         if (!heard) {
@@ -444,7 +445,8 @@ export class JarvisEngine {
         }
       }
       if (text === undefined) {
-        this.set({ status: 'thinking', activity: 'Распознаю…' });
+        // Background chatter in standby on iOS shouldn't flash "thinking".
+        if (engaged) this.set({ status: 'thinking', activity: 'Распознаю…' });
         const wav = encodeWav(utterance.chunks, utterance.sampleRate);
         text = await this.transcribe(wav, signal);
       }
@@ -456,13 +458,18 @@ export class JarvisEngine {
       if (isNoise(text)) {
         this.busy = false;
         if (wasListening) this.resumeListening();
-        else this.enterStandby();
+        else if (engaged) this.enterStandby();
         return;
       }
 
-      // In standby the wake word was already heard on the device; if the
-      // cloud transcript misses it, the phrase is still a command.
+      // If the device already heard the wake word in standby, the phrase is
+      // a command even when the cloud transcript misses it. Without the
+      // on-device check (iOS), the cloud transcript decides.
       const rest = parseWakeWord(text);
+      if (!engaged && !rest) {
+        this.busy = false; // not for us
+        return;
+      }
       engaged = true;
       if (rest?.length === 0) {
         // Just "Jarvis" — acknowledge and listen for the command.

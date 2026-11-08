@@ -1,7 +1,11 @@
 import { Linking } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { VISION_PHOTO_QUALITY } from '../config/jarvis';
-import { scheduleReminder } from './notificationsService';
+import {
+  cancelReminder,
+  listReminders,
+  scheduleReminder,
+} from './notificationsService';
 import { analyzeImage } from './openai';
 import { scanWithCamera } from './scanner';
 
@@ -75,6 +79,21 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['text', 'delay_seconds']
+  ),
+  fn(
+    'list_reminders',
+    'List the reminders that have not fired yet, with their ids and times.'
+  ),
+  fn(
+    'cancel_reminder',
+    'Cancel a pending reminder. Call list_reminders first to get its id.',
+    {
+      id: {
+        type: 'string',
+        description: 'Reminder id from list_reminders or set_reminder.',
+      },
+    },
+    ['id']
   ),
   fn(
     'end_conversation',
@@ -168,10 +187,31 @@ export async function runTool(name, args, { signal } = {}) {
 
     case 'set_reminder': {
       const seconds = Math.max(1, Math.round(Number(args.delay_seconds) || 0));
-      await scheduleReminder(args.text, seconds);
-      const at = new Date(Date.now() + seconds * 1000);
+      const { id, firesAt } = await scheduleReminder(args.text, seconds);
       return {
-        output: { status: 'scheduled', fires_at: at.toString() },
+        output: { status: 'scheduled', id, fires_at: firesAt.toString() },
+      };
+    }
+
+    case 'list_reminders': {
+      const reminders = await listReminders();
+      return {
+        output: {
+          reminders: reminders.map((r) => ({
+            id: r.id,
+            text: r.text,
+            fires_at: r.firesAt ? r.firesAt.toString() : 'unknown',
+          })),
+        },
+      };
+    }
+
+    case 'cancel_reminder': {
+      const cancelled = await cancelReminder(String(args.id || ''));
+      return {
+        output: cancelled
+          ? { status: 'cancelled' }
+          : { error: 'No pending reminder with that id.' },
       };
     }
 

@@ -117,10 +117,6 @@ EXPO_PUBLIC_OPENAI_API_KEY=your_openai_key
   – “Sir, you have a meeting in 10 minutes”
   Powered by `expo-notifications`
 
-- ✅ **Secure Access with Biometric Authentication**
-  – “Please confirm your identity: use Face ID or system password”
-  Powered by `expo-local-authentication`
-
 - ⏳ **Custom Voice Personality for J.A.R.V.I.S.**
   – Natural-sounding speech with pauses and tone
   – “Good morning, Sir. How are you feeling today?”

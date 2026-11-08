@@ -39,8 +39,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Removed
 
+- Biometric lock screen on launch (`expo-local-authentication`): it only ran on a cold start and didn't cover the wake word, which works with the screen off
 - GitHub voice commands (create or delete a repository, read recent commits) and the `EXPO_PUBLIC_GITHUB_TOKEN_KEY` setting; no GitHub token is bundled into the app anymore
-- Unused dependencies: `openai`, `axios`, `expo-av`, `expo-camera`, `expo-file-system`, `expo-status-bar`, `react-native-tts`, `@react-native-voice/voice`, `react-native-background-actions`, `react-native-markdown-display`, `@react-native-community/cli`
+- Unused dependencies: `openai`, `axios`, `expo-av`, `expo-camera`, `expo-file-system`, `expo-status-bar`, `react-native-tts`, `@react-native-voice/voice`, `react-native-background-actions`, `react-native-markdown-display`, `@react-native-community/cli`, `expo-blur`, `expo-local-authentication`
 - Obsolete config: `newArchEnabled`, `edgeToEdgeEnabled` (now always on), manual `appComponentFactory` manifest override
 
 ## [1.0.0] - 2025-07-16

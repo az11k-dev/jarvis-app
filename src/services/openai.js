@@ -46,8 +46,27 @@ function multipart(fields, file) {
   return { body, contentType: `multipart/form-data; boundary=${boundary}` };
 }
 
+/**
+ * A signal that aborts when `signal` does or after `ms`. `cleanup()` stops
+ * the timer and listener. (AbortSignal.any/timeout aren't in Hermes.)
+ */
+function withTimeout(signal, ms) {
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (signal?.aborted) abort();
+  signal?.addEventListener('abort', abort);
+  const timer = ms ? setTimeout(abort, ms) : null;
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    },
+  };
+}
+
 /** Speech-to-text for WAV bytes. */
-export async function transcribe(wavBytes, { signal } = {}) {
+export async function transcribe(wavBytes, { signal, timeoutMs } = {}) {
   const { body, contentType } = multipart(
     {
       model: MODELS.transcribe,
@@ -56,15 +75,22 @@ export async function transcribe(wavBytes, { signal } = {}) {
     { name: 'utterance.wav', type: 'audio/wav', bytes: wavBytes }
   );
 
-  const res = await fetch(`${API}/audio/transcriptions`, {
-    method: 'POST',
-    headers: { ...authHeaders(), 'Content-Type': contentType },
-    body,
-    signal,
-  });
-  if (!res.ok) throw new Error(`Transcription failed: ${await readError(res)}`);
-  const data = await res.json();
-  return (data.text || '').trim();
+  const request = withTimeout(signal, timeoutMs);
+  try {
+    const res = await fetch(`${API}/audio/transcriptions`, {
+      method: 'POST',
+      headers: { ...authHeaders(), 'Content-Type': contentType },
+      body,
+      signal: request.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Transcription failed: ${await readError(res)}`);
+    }
+    const data = await res.json();
+    return (data.text || '').trim();
+  } finally {
+    request.cleanup();
+  }
 }
 
 /** One call to the Responses API. Returns the raw response object. */

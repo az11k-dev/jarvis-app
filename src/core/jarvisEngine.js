@@ -13,6 +13,7 @@ import {
   FOLLOW_UP_WINDOW_MS,
   OPENAI_API_KEY,
   TRANSCRIBE_PROMPT,
+  TRANSCRIBE_TIMEOUT_MS,
   TRANSCRIPT_HALLUCINATIONS,
   VAD,
   WAKE_FILLERS,
@@ -496,12 +497,27 @@ export class JarvisEngine {
   }
 
   /**
-   * On-device speech-to-text. Until its model has downloaded, OpenAI's
-   * transcription stands in (if a key is configured).
+   * Speech-to-text with OpenAI (MODELS.transcribe). When it fails or takes
+   * too long, or no key is set, the on-device recognizer stands in.
    */
   async transcribe(wav, signal) {
+    if (OPENAI_API_KEY) {
+      const started = Date.now();
+      try {
+        const text = await transcribe(wav, {
+          signal,
+          timeoutMs: TRANSCRIBE_TIMEOUT_MS,
+        });
+        if (__DEV__) {
+          console.log(`[speech] stt cloud ${Date.now() - started}ms: ${text}`);
+        }
+        return text;
+      } catch (e) {
+        if (signal.aborted || !localSpeech.sttReady) throw e;
+        console.warn('Cloud transcription failed, using on-device:', e.message);
+      }
+    }
     if (localSpeech.sttReady) return localSpeech.transcribe(wav);
-    if (OPENAI_API_KEY) return transcribe(wav, { signal });
     throw new SpeechNotReadyError();
   }
 

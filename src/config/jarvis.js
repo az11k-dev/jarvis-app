@@ -11,9 +11,15 @@ export const MODELS = {
     process.env.EXPO_PUBLIC_OPENAI_VISION_MODEL ||
     process.env.EXPO_PUBLIC_OPENAI_MODEL ||
     'gpt-6-luna',
-  // Fallback only, used while the on-device recognizer is still downloading.
-  transcribe: 'gpt-4o-mini-transcribe',
+  // Speech-to-text. The on-device recognizer stands in when this is
+  // unreachable (offline, API error, timeout) or no key is set.
+  transcribe:
+    process.env.EXPO_PUBLIC_OPENAI_TRANSCRIBE_MODEL || 'gpt-transcribe',
 };
+
+// How long to wait for OpenAI's transcription before falling back to the
+// on-device recognizer. Short phrases normally come back in 1–2 s.
+export const TRANSCRIBE_TIMEOUT_MS = 8000;
 
 // Microphone stream format. 16 kHz mono PCM is what speech models want and
 // keeps uploads small.
@@ -122,8 +128,9 @@ const piper = (voice, sizeMb) => ({
 });
 
 export const SPEECH_MODELS = {
-  // Speech-to-text: NeMo FastConformer transducer, Russian + English (and 8
-  // more European languages), with punctuation.
+  // Offline speech-to-text, used when OpenAI's transcription is unreachable:
+  // NeMo FastConformer transducer, Russian + English (and 8 more European
+  // languages), with punctuation.
   stt: {
     url: `${MODEL_RELEASES}/asr-models/sherpa-onnx-nemo-fast-conformer-transducer-be-de-en-es-fr-hr-it-pl-ru-uk-20k-int8.tar.bz2`,
     sizeMb: 101,

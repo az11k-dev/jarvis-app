@@ -36,8 +36,8 @@ const log = (...args) => {
  * the background), runs speech-to-text and synthesizes speech to WAV files.
  *
  * Memory: the recognizer and both voices stay loaded (~700 MB PSS in all on
- * a Snapdragon 855): the recognizer hears every phrase in standby and the
- * voices are small.
+ * a Snapdragon 855). Speech-to-text normally goes to OpenAI; the recognizer
+ * stays ready so JARVIS keeps hearing you offline.
  */
 class LocalSpeech {
   supported = Native.isSupported;

@@ -28,8 +28,10 @@ This is the core version focusing on voice input and intelligent response.
 
 The microphone streams raw 16 kHz PCM (`expo-audio` `useAudioStream`) into an on-device
 voice-activity detector (`src/audio/vad.js`) that adapts to room noise. Only the
-segments where someone actually speaks are sent to OpenAI for transcription. They are
-dropped unless they start with the wake word. The screen stays on while the app is open.
+segments where someone actually speaks are sent to OpenAI for transcription
+(`gpt-transcribe`). They are dropped unless they start with the wake word. Without a
+connection, or if OpenAI takes longer than 8 s, an on-device recognizer (sherpa-onnx,
+NeMo FastConformer) transcribes instead. The screen stays on while the app is open.
 
 On Android JARVIS keeps listening after you leave the app or turn the screen off: a
 `microphone` foreground service (`modules/jarvis-background`) shows an ongoing

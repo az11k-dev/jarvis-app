@@ -8,6 +8,8 @@ import { VoiceActivityDetector } from '../audio/vad';
 import { encodeWav } from '../audio/wav';
 import {
   ACK_PHRASES,
+  CONVERSATION_QUESTION_WINDOW_MS,
+  CONVERSATION_WINDOW_MS,
   FOLLOW_UP_WINDOW_MS,
   OPENAI_API_KEY,
   TRANSCRIBE_PROMPT,
@@ -26,8 +28,9 @@ import { cleanForSpeech, voiceOutput } from '../services/voice';
  * States:
  *  off        – microphone disabled
  *  standby    – only phrases that start with the wake word are handled
- *  listening  – the next phrase is a command, no wake word needed (after a
- *               bare "Jarvis" or a tap on the core); then back to standby
+ *  listening  – the next phrase is a command, no wake word needed: after a
+ *               bare "Jarvis", a tap on the core, or an answer (the
+ *               conversation stays open for a few seconds); then standby
  *  thinking   – transcribing / waiting for the model / running tools
  *  speaking   – JARVIS is talking
  */
@@ -79,6 +82,7 @@ export class JarvisEngine {
   listeners = new Set();
   levelListener = null;
   followUpTimer = null;
+  listenDeadline = 0; // when the current listening window closes
   turn = 0;
   abort = null;
   busy = false; // an utterance is being processed
@@ -340,14 +344,25 @@ export class JarvisEngine {
     this.set({ status: 'standby', userSpeaking: false, activity: null });
   }
 
-  enterListening() {
+  enterListening(windowMs = FOLLOW_UP_WINDOW_MS) {
     this.clearFollowUp();
+    this.listenDeadline = Date.now() + windowMs;
     this.set({ status: 'listening', userSpeaking: false, activity: null });
     this.followUpTimer = setTimeout(() => {
       if (this.status === 'listening' && !this.snapshot.userSpeaking) {
         this.enterStandby();
       }
-    }, FOLLOW_UP_WINDOW_MS);
+    }, windowMs);
+  }
+
+  /**
+   * Back to listening after a sound that wasn't speech, for whatever is left
+   * of the window — so a noisy room can't hold the conversation open.
+   */
+  resumeListening() {
+    const left = this.listenDeadline - Date.now();
+    if (left > 0) this.enterListening(left);
+    else this.enterStandby();
   }
 
   clearFollowUp() {
@@ -363,12 +378,12 @@ export class JarvisEngine {
     voiceOutput.stop();
   }
 
-  resumeAfterSpeaking(next = 'listening') {
+  resumeAfterSpeaking(next = 'listening', windowMs) {
     if (this.disposed || this.status === 'off') return;
     this.vad.reset();
     this.vad.ignoreFor(VAD.echoGuardMs);
     if (next !== 'listening') this.enterStandby();
-    else this.enterListening();
+    else this.enterListening(windowMs);
   }
 
   async say(text, options) {
@@ -396,7 +411,7 @@ export class JarvisEngine {
     this.set({ userSpeaking: false });
     const wasListening = this.status === 'listening';
     if (!utterance) {
-      if (wasListening) this.enterListening();
+      if (wasListening) this.resumeListening();
       return;
     }
 
@@ -419,30 +434,28 @@ export class JarvisEngine {
 
       if (isNoise(text)) {
         this.busy = false;
-        if (wasListening) this.enterListening();
+        if (wasListening) this.resumeListening();
         return;
       }
 
-      if (!wasListening) {
-        const rest = parseWakeWord(text);
-        if (!rest) {
-          this.busy = false; // not for us
-          return;
-        }
-        engaged = true;
-        if (rest.length === 0) {
-          // Just "Jarvis" — acknowledge and listen for the command.
-          this.addMessage('user', text);
-          const lang = /[a-z]/i.test(text) ? 'en' : 'ru';
-          const options = ACK_PHRASES[lang];
-          const ack = options[Math.floor(Math.random() * options.length)];
-          this.addMessage('jarvis', ack);
-          await this.say(ack, { cacheable: true });
-          if (turn !== this.turn) return;
-          this.busy = false;
-          this.resumeAfterSpeaking();
-          return;
-        }
+      const rest = parseWakeWord(text);
+      if (!wasListening && !rest) {
+        this.busy = false; // not for us
+        return;
+      }
+      engaged = true;
+      if (rest?.length === 0) {
+        // Just "Jarvis" — acknowledge and listen for the command.
+        this.addMessage('user', text);
+        const lang = /[a-z]/i.test(text) ? 'en' : 'ru';
+        const options = ACK_PHRASES[lang];
+        const ack = options[Math.floor(Math.random() * options.length)];
+        this.addMessage('jarvis', ack);
+        await this.say(ack, { cacheable: true });
+        if (turn !== this.turn) return;
+        this.busy = false;
+        this.resumeAfterSpeaking();
+        return;
       }
 
       await this.converse(text, turn, signal);
@@ -521,7 +534,18 @@ export class JarvisEngine {
       }
     }
     if (turn !== this.turn) return;
-    // Every new request needs the wake word again.
-    this.resumeAfterSpeaking('standby');
+
+    // Keep the conversation open so the next phrase needs no wake word —
+    // unless the user signed off, or JARVIS opened another app (its sound,
+    // e.g. a YouTube video, would be taken for the user talking).
+    if (reply.endConversation || reply.after.length) {
+      this.resumeAfterSpeaking('standby');
+    } else {
+      const asked = /\?\s*$/.test(reply.text || '');
+      this.resumeAfterSpeaking(
+        'listening',
+        asked ? CONVERSATION_QUESTION_WINDOW_MS : CONVERSATION_WINDOW_MS
+      );
+    }
   }
 }

@@ -57,6 +57,12 @@ export const VISION_SCAN = { settleMs: 1200, readyTimeoutMs: 8000 };
 // the command before going back to standby.
 export const FOLLOW_UP_WINDOW_MS = 8000;
 
+// After JARVIS answers, the conversation stays open this long: the next
+// phrase needs no wake word. Speaking keeps it open; silence closes it.
+export const CONVERSATION_WINDOW_MS = 10000;
+// Longer when JARVIS ended on a question and is waiting for the answer.
+export const CONVERSATION_QUESTION_WINDOW_MS = 15000;
+
 // Spoken forms of the wake word as the on-device recognizer spells them,
 // collected from real tests: it blurs or drops the "в" (Джарес, Джарыз,
 // Джарвейс), doubles the "р" (Джаррез, Джаррес), mixes alphabets (Джарvс),

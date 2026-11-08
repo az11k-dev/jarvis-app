@@ -82,6 +82,11 @@ export class JarvisBrain {
         } catch (e) {
           output = { error: e.message };
         }
+        if (__DEV__) {
+          console.log(
+            `[tool] ${call.name} ${call.arguments || '{}'} -> ${JSON.stringify(output)}`
+          );
+        }
         input.push(
           {
             type: 'function_call',

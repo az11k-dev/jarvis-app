@@ -21,7 +21,6 @@ This is the core version focusing on voice input and intelligent response.
 - 🔊 **Neural JARVIS voice** – On-device Piper voices (Ruslan for Russian, Alan for English), synthesized and played sentence by sentence. Falls back to the device voice while a model is downloading and on iOS
 - 👁️ **Vision** – _«Джарвис, что это?»_, _"Jarvis, read this"_, _«переведи табличку»_: JARVIS opens its scanner HUD, takes the shot by itself once the focus settles and reports what it sees — objects, products, plants, text read aloud or translated. Say "from the gallery" to analyse an existing photo
 - 🌐 **Actions** – Open YouTube (with search), Telegram or any website; set reminders that JARVIS reads aloud
-- 🔐 **Secure Access** – Face ID, Touch ID or device password before launch
 - ⚙️ **Cross-Platform** – Expo SDK 58, iOS and Android (on-device wake word, offline speech and background listening are Android-only for now)
 
 ### How it listens

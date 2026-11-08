@@ -18,7 +18,7 @@ This is the core version focusing on voice input and intelligent response.
 - 🗨️ **Only when addressed** – JARVIS reacts only to phrases that start with its name, detects when you stop talking and answers. Say just «Джарвис» and it replies «Слушаю, сэр» and takes your next phrase as the command
 - ✋ **Interrupt anytime** – Tap the arc reactor to cut JARVIS off, cancel, or start talking
 - 🧠 **Tool-calling brain** – OpenAI Responses API with function calling and built-in web search for live facts, weather and news
-- 🔊 **Neural JARVIS voice** – OpenAI TTS styled as a composed British AI butler, with streaming playback by sentence. Falls back to the device voice offline
+- 🔊 **Neural JARVIS voice** – On-device Piper voices (Ruslan for Russian, Alan for English), synthesized and played sentence by sentence. Falls back to the device voice while a model is downloading and on iOS
 - 👁️ **Vision** – _«Джарвис, что это?»_, _"Jarvis, read this"_, _«переведи табличку»_: JARVIS opens its scanner HUD, takes the shot by itself once the focus settles and reports what it sees — objects, products, plants, text read aloud or translated. Say "from the gallery" to analyse an existing photo
 - 🌐 **Actions** – Open YouTube (with search), Telegram, the camera or any website; set reminders that JARVIS reads aloud
 - 🔐 **Secure Access** – Face ID, Touch ID or device password before launch

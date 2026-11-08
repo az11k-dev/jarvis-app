@@ -48,10 +48,6 @@ export const TOOL_DEFINITIONS = [
     },
     ['question', 'source', 'facing']
   ),
-  fn(
-    'open_camera',
-    'Just open the camera app for the user to take a photo themselves, without analysing it.'
-  ),
   fn('open_telegram', 'Open the Telegram app.'),
   fn(
     'open_youtube',
@@ -109,12 +105,6 @@ async function openWithFallback(appUrl, webUrl) {
   }
 }
 
-async function launchCamera() {
-  const { status } = await ImagePicker.requestCameraPermissionsAsync();
-  if (status !== 'granted') return;
-  await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 });
-}
-
 /** Picks an existing photo. Returns base64 JPEG, or null if cancelled. */
 async function pickFromGallery() {
   const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -149,9 +139,6 @@ export async function runTool(name, args, { signal } = {}) {
       );
       return { output: { analysis: description || 'Nothing recognised.' } };
     }
-
-    case 'open_camera':
-      return { output: { status: 'opening_after_reply' }, after: launchCamera };
 
     case 'open_telegram':
       return {

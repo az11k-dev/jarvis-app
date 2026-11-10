@@ -1,0 +1,159 @@
+import * as Td from '../../modules/jarvis-telegram';
+import { TELEGRAM_API_HASH, TELEGRAM_API_ID } from '../config/jarvis';
+
+/**
+ * Telegram as the user's own account. Keeps the login state that the
+ * Telegram modal shows, and wraps the TDLib requests JARVIS uses.
+ *
+ * state.step: 'unavailable' | 'loading' | 'phone' | 'code' | 'password'
+ *   | 'ready' | 'unsupported'
+ */
+
+export const isConfigured =
+  Td.isSupported && TELEGRAM_API_ID > 0 && !!TELEGRAM_API_HASH;
+
+let state = { step: isConfigured ? 'loading' : 'unavailable' };
+const listeners = new Set();
+let started = false;
+
+function setState(patch) {
+  state = { ...state, ...patch };
+  listeners.forEach((l) => l(state));
+}
+
+export const getState = () => state;
+
+export function subscribe(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+const UNSUPPORTED = {
+  authorizationStateWaitEmailAddress:
+    'Telegram просит почту для входа. Войдите один раз в официальном приложении и повторите.',
+  authorizationStateWaitEmailCode:
+    'Telegram просит код с почты. Войдите один раз в официальном приложении и повторите.',
+  authorizationStateWaitRegistration:
+    'На этот номер нет аккаунта Telegram. Сначала зарегистрируйтесь в официальном приложении.',
+  authorizationStateWaitOtherDeviceConfirmation:
+    'Подтвердите вход на другом устройстве.',
+  authorizationStateWaitPremiumPurchase:
+    'Telegram требует Premium для входа с этого номера. Войдите в официальном приложении.',
+};
+
+async function onAuthState(auth) {
+  const type = auth['@type'];
+  switch (type) {
+    case 'authorizationStateWaitPhoneNumber':
+      return setState({ step: 'phone', me: null });
+    case 'authorizationStateWaitCode':
+      return setState({
+        step: 'code',
+        codeType: auth.code_info?.type?.['@type'],
+      });
+    case 'authorizationStateWaitPassword':
+      return setState({ step: 'password', passwordHint: auth.password_hint });
+    case 'authorizationStateReady': {
+      setState({ step: 'ready' });
+      try {
+        setState({ me: await getMe() });
+      } catch (e) {
+        console.warn('Telegram getMe failed:', e.message);
+      }
+      return;
+    }
+    case 'authorizationStateClosed':
+      // After a log out TDLib closes the client; a fresh one asks for the phone.
+      setState({ step: 'loading', me: null });
+      Td.start(TELEGRAM_API_ID, TELEGRAM_API_HASH);
+      return;
+    default:
+      if (UNSUPPORTED[type]) {
+        return setState({ step: 'unsupported', message: UNSUPPORTED[type] });
+      }
+      return setState({ step: 'loading' });
+  }
+}
+
+/** Starts TDLib and restores the saved session. Safe to call more than once. */
+export async function startTelegram() {
+  if (!isConfigured || started) return;
+  started = true;
+  let sawUpdate = false;
+  Td.addUpdateListener((update) => {
+    if (update['@type'] === 'updateAuthorizationState') {
+      sawUpdate = true;
+      onAuthState(update.authorization_state);
+    }
+  });
+  Td.start(TELEGRAM_API_ID, TELEGRAM_API_HASH);
+  // The client outlives JS reloads, so its auth update may have gone out
+  // before this listener existed. Events and promise results can arrive in
+  // either order, so an update always wins over this answer.
+  try {
+    const auth = await Td.send({ '@type': 'getAuthorizationState' });
+    if (!sawUpdate) onAuthState(auth);
+  } catch {
+    // Not initialised yet; the update will arrive.
+  }
+}
+
+const ERRORS = [
+  [/PHONE_NUMBER_INVALID/, 'Неверный номер телефона.'],
+  [/PHONE_NUMBER_BANNED/, 'Этот номер заблокирован в Telegram.'],
+  [/PHONE_CODE_INVALID|PHONE_CODE_EMPTY/, 'Неверный код.'],
+  [/PHONE_CODE_EXPIRED/, 'Код устарел. Запросите новый.'],
+  [/PASSWORD_HASH_INVALID/, 'Неверный пароль.'],
+  [/retry after (\d+)/i, (m) => `Слишком много попыток. Подождите ${m[1]} с.`],
+  [/FLOOD_WAIT_(\d+)/, (m) => `Слишком много попыток. Подождите ${m[1]} с.`],
+];
+
+export function errorText(e) {
+  // Expo wraps native rejections: "Call to function … → Caused by: <TDLib message>".
+  const message = String(e?.message || e)
+    .split('Caused by:')
+    .pop()
+    .trim();
+  for (const [pattern, text] of ERRORS) {
+    const m = message.match(pattern);
+    if (m) return typeof text === 'function' ? text(m) : text;
+  }
+  return message;
+}
+
+async function authStep(request) {
+  setState({ busy: true, error: null });
+  try {
+    await Td.send(request);
+  } catch (e) {
+    setState({ error: errorText(e) });
+  } finally {
+    setState({ busy: false });
+  }
+}
+
+export const submitPhone = (phone) =>
+  authStep({
+    '@type': 'setAuthenticationPhoneNumber',
+    phone_number: phone.replace(/[^\d+]/g, ''),
+  });
+
+export const submitCode = (code) =>
+  authStep({ '@type': 'checkAuthenticationCode', code: code.trim() });
+
+export const submitPassword = (password) =>
+  authStep({ '@type': 'checkAuthenticationPassword', password });
+
+export const resendCode = () =>
+  authStep({ '@type': 'resendAuthenticationCode' });
+
+export const logOut = () => authStep({ '@type': 'logOut' });
+
+export const getMe = () => Td.send({ '@type': 'getMe' });
+
+export function displayName(user) {
+  if (!user) return '';
+  const name = [user.first_name, user.last_name].filter(Boolean).join(' ');
+  const username = user.usernames?.active_usernames?.[0];
+  return username ? `${name} (@${username})` : name;
+}

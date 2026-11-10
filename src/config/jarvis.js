@@ -174,3 +174,8 @@ export const ACK_PHRASES = {
   ru: ['Да, сэр?', 'Слушаю, сэр.', 'К вашим услугам, сэр.'],
   en: ['Yes, sir?', 'At your service, sir.', 'Listening, sir.'],
 };
+
+// ── Telegram (TDLib, logged in as the user; see modules/jarvis-telegram) ──
+// From https://my.telegram.org → API development tools.
+export const TELEGRAM_API_ID = Number(process.env.EXPO_PUBLIC_TG_API_ID) || 0;
+export const TELEGRAM_API_HASH = process.env.EXPO_PUBLIC_TG_API_HASH || '';

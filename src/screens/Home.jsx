@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ArcReactor, { STATUS_COLORS } from '../components/ArcReactor';
+import TelegramModal from '../components/TelegramModal';
 import Transcript from '../components/Transcript';
 import VisionScanner from '../components/VisionScanner';
 import VoicePickerModal from '../components/VoicePickerModal';
 import { useJarvis } from '../hooks/useJarvis';
+import { startTelegram } from '../services/telegram';
 import { styles } from '../styles/mainStyles';
 
 const STATUS_TEXT = {
@@ -37,6 +39,12 @@ export default function Home() {
   const jarvis = useJarvis();
   const { engine, status, settings } = jarvis;
   const [isVoicePickerVisible, setIsVoicePickerVisible] = useState(false);
+  const [isTelegramVisible, setIsTelegramVisible] = useState(false);
+
+  // Restores the saved Telegram session (no-op when not configured).
+  useEffect(() => {
+    startTelegram();
+  }, []);
 
   const [title, defaultSubtitle] = STATUS_TEXT[status] || STATUS_TEXT.standby;
   const subtitle =
@@ -99,6 +107,11 @@ export default function Home() {
           onPress={() => setIsVoicePickerVisible(true)}
         />
         <ControlButton
+          icon="✈️"
+          label="Telegram"
+          onPress={() => setIsTelegramVisible(true)}
+        />
+        <ControlButton
           icon="🧹"
           label="Новый диалог"
           onPress={() => engine.clearConversation()}
@@ -112,6 +125,10 @@ export default function Home() {
         selected={settings.voice}
         onSelect={(voice, lang) => engine.setVoice(voice, lang)}
         onClose={() => setIsVoicePickerVisible(false)}
+      />
+      <TelegramModal
+        isVisible={isTelegramVisible}
+        onClose={() => setIsTelegramVisible(false)}
       />
       <VisionScanner />
     </SafeAreaView>

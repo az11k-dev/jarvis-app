@@ -1,0 +1,27 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.jarvistelegram'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.jarvistelegram"
+  defaultConfig {
+    versionCode 1
+    versionName "1.0.0"
+    // TdJson reaches TdApi classes and fields by name.
+    consumerProguardFiles 'consumer-rules.pro'
+  }
+}
+
+repositories {
+  maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+  // TDLib, Telegram's official client library, prebuilt for Android
+  // (arm64-v8a, armeabi-v7a, x86, x86_64) with its Java binding.
+  implementation 'com.github.tdlibx:td:1.8.56'
+}

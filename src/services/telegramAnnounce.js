@@ -58,7 +58,10 @@ function status() {
     paused: settings.paused,
     mentions: settings.mentions,
     private_chats: settings.privateChats,
-    watched_chats: Object.values(settings.chats).map(spokenName),
+    watched_chats: Object.entries(settings.chats).map(([id, title]) => ({
+      chat_id: Number(id),
+      title: spokenName(title),
+    })),
   };
 }
 

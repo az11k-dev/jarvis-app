@@ -212,7 +212,7 @@ export const TOOL_DEFINITIONS = [
   ),
   fn(
     'tg_announcements',
-    'Show or change which new Telegram messages JARVIS speaks: pause/resume all, mentions of the user on/off, private chats on/off. status lists the watched chats.',
+    'Show or change which new Telegram messages JARVIS speaks: pause/resume all, mentions of the user on/off, private chats on/off. status lists the watched chats with their chat_id.',
     {
       action: {
         type: 'string',

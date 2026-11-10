@@ -6,6 +6,7 @@ import {
   RUSSIAN_VOICES,
   SPEECH_MODELS,
 } from '../config/jarvis';
+import HudCorners from './hud/HudCorners';
 import { styles } from '../styles/mainStyles';
 
 export default function VoicePickerModal({
@@ -64,7 +65,9 @@ export default function VoicePickerModal({
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
+          <HudCorners />
           <Text style={styles.modalTitle}>Голос JARVIS</Text>
+          <View style={styles.modalTitleRule} />
           <SectionList
             sections={sections}
             keyExtractor={(item) => item.key}
@@ -81,7 +84,14 @@ export default function VoicePickerModal({
                 ]}
                 onPress={() => onSelect(item.voice, item.lang)}
               >
-                <Text style={styles.voiceText}>{item.label}</Text>
+                <Text
+                  style={[
+                    styles.voiceText,
+                    item.selected && styles.selectedVoiceText,
+                  ]}
+                >
+                  {item.label}
+                </Text>
               </TouchableOpacity>
             )}
           />

@@ -140,7 +140,7 @@ export class JarvisEngine {
   addMessage(role, text) {
     const messages = [
       ...this.snapshot.messages,
-      { id: ++messageId, role, text },
+      { id: ++messageId, role, text, at: Date.now() },
     ].slice(-60);
     this.set({ messages });
   }

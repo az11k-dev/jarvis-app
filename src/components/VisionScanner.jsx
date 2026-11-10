@@ -11,7 +11,7 @@ import {
 import { CameraView } from 'expo-camera';
 import { VISION_PHOTO_QUALITY, VISION_SCAN } from '../config/jarvis';
 import { setScannerHandler } from '../services/scanner';
-import { COLORS } from '../styles/mainStyles';
+import { COLORS, FONTS } from '../styles/mainStyles';
 
 const FRAME = 260;
 
@@ -156,8 +156,8 @@ const s = StyleSheet.create({
   },
   title: {
     color: COLORS.cyan,
+    fontFamily: FONTS.bold,
     fontSize: 16,
-    fontWeight: '700',
     letterSpacing: 6,
     marginBottom: 24,
     textShadowColor: COLORS.cyan,
@@ -187,6 +187,7 @@ const s = StyleSheet.create({
   },
   hint: {
     color: COLORS.text,
+    fontFamily: FONTS.regular,
     fontSize: 13,
     marginTop: 24,
     opacity: 0.8,

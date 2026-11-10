@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import * as Telegram from '../services/telegram';
+import HudCorners from './hud/HudCorners';
 import { COLORS, styles } from '../styles/mainStyles';
 
 const CODE_SOURCE = {
@@ -37,7 +38,9 @@ export default function TelegramModal({ isVisible, onClose }) {
     >
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
+          <HudCorners />
           <Text style={styles.modalTitle}>Telegram</Text>
+          <View style={styles.modalTitleRule} />
           <Body state={state} />
           {state.error && <Text style={styles.errorText}>{state.error}</Text>}
           <TouchableOpacity style={styles.closeModalButton} onPress={onClose}>
@@ -158,7 +161,7 @@ function TgButton({ label, busy, disabled, onPress }) {
       disabled={busy || disabled}
     >
       {busy ? (
-        <ActivityIndicator color={COLORS.bg} />
+        <ActivityIndicator color={COLORS.cyan} />
       ) : (
         <Text style={styles.tgButtonText}>{label}</Text>
       )}

@@ -5,7 +5,8 @@ export default {
     version: '1.1.0',
     orientation: 'portrait',
     icon: './assets/icon.png',
-    userInterfaceStyle: 'light',
+    userInterfaceStyle: 'dark',
+    backgroundColor: '#05080f',
     ios: {
       supportsTablet: true,
     },
@@ -33,7 +34,7 @@ export default {
           image: './assets/splash-icon.png',
           imageWidth: 200,
           resizeMode: 'contain',
-          backgroundColor: '#ffffff',
+          backgroundColor: '#05080f',
         },
       ],
       [

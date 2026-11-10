@@ -1,44 +1,58 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet } from 'react-native';
+import Svg, {
+  Circle,
+  Defs,
+  Line,
+  RadialGradient,
+  Stop,
+} from 'react-native-svg';
 
-const SIZE = 240;
-const TICKS = 36;
-const TICK_WIDTH = 3;
-const TICK_RADIUS = SIZE / 2 - 10;
-
-// Each tick gets an explicit position on the circle around the reactor's
-// centre and only rotates around its own midpoint. Relying on implicit
-// centering of absolute children plus a rotate→translate chain put the ring
-// off-centre on device, so the core no longer sat in the middle of it.
-const TICK_LAYOUT = Array.from({ length: TICKS }, (_, i) => {
-  const angle = (2 * Math.PI * i) / TICKS;
-  const major = i % 3 === 0;
-  const height = major ? 14 : 7;
-  return {
-    width: TICK_WIDTH,
-    height,
-    left: SIZE / 2 + TICK_RADIUS * Math.sin(angle) - TICK_WIDTH / 2,
-    top: SIZE / 2 - TICK_RADIUS * Math.cos(angle) - height / 2,
-    opacity: major ? 1 : 0.5,
-    transform: [{ rotate: `${(360 / TICKS) * i}deg` }],
-  };
-});
+export const SIZE = 260;
+const C = SIZE / 2;
 
 export const STATUS_COLORS = {
-  off: '#334155',
-  standby: '#0891b2',
-  listening: '#00e5ff',
-  thinking: '#f59e0b',
-  speaking: '#38bdf8',
+  off: '#3a4f5c',
+  standby: '#2bb8d9',
+  listening: '#4fe3ff',
+  thinking: '#ffb54a',
+  speaking: '#7fe9ff',
 };
 
 const SPIN_MS = {
   off: 0,
-  standby: 24000,
-  listening: 9000,
-  thinking: 1800,
-  speaking: 6000,
+  standby: 40000,
+  listening: 14000,
+  thinking: 2600,
+  speaking: 9000,
 };
+
+const TICKS = 90;
+const TICK_LINES = Array.from({ length: TICKS }, (_, i) => {
+  const a = (2 * Math.PI * i) / TICKS;
+  const major = i % 5 === 0;
+  const r1 = major ? C - 15 : C - 10;
+  const r2 = C - 5;
+  return {
+    x1: C + r1 * Math.sin(a),
+    y1: C - r1 * Math.cos(a),
+    x2: C + r2 * Math.sin(a),
+    y2: C - r2 * Math.cos(a),
+    major,
+  };
+});
+
+// Dash patterns: arcs of uneven length read as "machined" rather than drawn.
+const ARC_R = C * 0.8;
+const ARC_LEN = 2 * Math.PI * ARC_R;
+const ARC_DASH = [
+  0.23, 0.03, 0.01, 0.03, 0.13, 0.03, 0.01, 0.03, 0.28, 0.03, 0.01, 0.03, 0.13,
+]
+  .map((f) => f * ARC_LEN)
+  .join(' ');
+const COIL_R = C * 0.62;
+const COIL_SEG = (2 * Math.PI * COIL_R) / 12;
+const COIL_DASH = `${COIL_SEG - 7} 7`;
 
 function useLoop(make, deps) {
   useEffect(() => {
@@ -48,6 +62,16 @@ function useLoop(make, deps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 }
+
+const spinLoop = (value, ms) =>
+  Animated.loop(
+    Animated.timing(value, {
+      toValue: 1,
+      duration: ms,
+      easing: Easing.linear,
+      useNativeDriver: true,
+    })
+  );
 
 export default function ArcReactor({ status, level, userSpeaking, onPress }) {
   const [spin] = useState(() => new Animated.Value(0));
@@ -61,43 +85,22 @@ export default function ArcReactor({ status, level, userSpeaking, onPress }) {
     spin.setValue(0);
     counterSpin.setValue(0);
     return Animated.parallel([
-      Animated.loop(
-        Animated.timing(spin, {
-          toValue: 1,
-          duration: ms,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        })
-      ),
-      Animated.loop(
-        Animated.timing(counterSpin, {
-          toValue: 1,
-          duration: ms * 1.6,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        })
-      ),
+      spinLoop(spin, ms),
+      spinLoop(counterSpin, ms * 0.7),
     ]);
   }, [status]);
 
   useLoop(() => {
+    const ms = status === 'speaking' ? 420 : 2000;
     breath.setValue(0);
-    return Animated.loop(
-      Animated.sequence([
-        Animated.timing(breath, {
-          toValue: 1,
-          duration: status === 'speaking' ? 450 : 1800,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(breath, {
-          toValue: 0,
-          duration: status === 'speaking' ? 450 : 1800,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
+    const step = (toValue) =>
+      Animated.timing(breath, {
+        toValue,
+        duration: ms,
+        easing: Easing.inOut(Easing.sin),
+        useNativeDriver: true,
+      });
+    return Animated.loop(Animated.sequence([step(1), step(0)]));
   }, [status]);
 
   const rotate = spin.interpolate({
@@ -108,23 +111,35 @@ export default function ArcReactor({ status, level, userSpeaking, onPress }) {
     inputRange: [0, 1],
     outputRange: ['360deg', '0deg'],
   });
+  const coilRotate = spin.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '120deg'],
+  });
   const breathScale = breath.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, status === 'speaking' ? 1.12 : 1.05],
+    outputRange: [1, status === 'speaking' ? 1.09 : 1.035],
   });
   const reactsToVoice = status === 'standby' || status === 'listening';
   const levelScale = level.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, reactsToVoice ? 1.45 : 1],
+    outputRange: [1, reactsToVoice ? 1.35 : 1],
+  });
+  const voiceRingScale = level.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, reactsToVoice ? 1.55 : 1],
+  });
+  const voiceRingOpacity = level.interpolate({
+    inputRange: [0, 0.05, 1],
+    outputRange: [0, reactsToVoice ? 0.5 : 0, reactsToVoice ? 0.9 : 0],
   });
   const haloOpacity = Animated.add(
-    breath.interpolate({ inputRange: [0, 1], outputRange: [0.12, 0.28] }),
+    breath.interpolate({ inputRange: [0, 1], outputRange: [0.45, 0.75] }),
     level.interpolate({
       inputRange: [0, 1],
-      outputRange: [0, reactsToVoice ? 0.45 : 0],
+      outputRange: [0, reactsToVoice ? 0.25 : 0],
     })
   );
-  const dim = status === 'off' ? 0.35 : status === 'standby' ? 0.7 : 1;
+  const dim = status === 'off' ? 0.35 : status === 'standby' ? 0.75 : 1;
 
   return (
     <Pressable
@@ -133,67 +148,171 @@ export default function ArcReactor({ status, level, userSpeaking, onPress }) {
       accessibilityLabel="JARVIS"
       style={styles.wrap}
     >
-      <Animated.View
-        style={[
-          styles.halo,
-          {
-            backgroundColor: color,
-            opacity: haloOpacity,
-            transform: [{ scale: levelScale }],
-          },
-        ]}
-      />
+      {/* Ambient glow behind everything */}
+      <Animated.View style={[styles.layer, { opacity: haloOpacity }]}>
+        <Svg width={SIZE} height={SIZE}>
+          <Defs>
+            <RadialGradient id="halo" cx="50%" cy="50%" r="50%">
+              <Stop offset="0" stopColor={color} stopOpacity="0.35" />
+              <Stop offset="0.45" stopColor={color} stopOpacity="0.1" />
+              <Stop offset="1" stopColor={color} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={C} cy={C} r={C} fill="url(#halo)" />
+        </Svg>
+      </Animated.View>
 
+      {/* Outer tick ring */}
       <Animated.View
         style={[styles.layer, { opacity: dim, transform: [{ rotate }] }]}
       >
-        {TICK_LAYOUT.map((tick, i) => (
-          <View
-            key={i}
-            style={[styles.tick, tick, { backgroundColor: color }]}
+        <Svg width={SIZE} height={SIZE}>
+          <Circle
+            cx={C}
+            cy={C}
+            r={C - 2}
+            stroke={color}
+            strokeOpacity={0.18}
+            strokeWidth={0.75}
+            fill="none"
           />
-        ))}
+          {TICK_LINES.map((t, i) => (
+            <Line
+              key={i}
+              x1={t.x1}
+              y1={t.y1}
+              x2={t.x2}
+              y2={t.y2}
+              stroke={color}
+              strokeWidth={t.major ? 1.6 : 0.9}
+              strokeOpacity={t.major ? 0.95 : 0.4}
+            />
+          ))}
+        </Svg>
       </Animated.View>
 
+      {/* Counter-rotating arc segments */}
       <Animated.View
         style={[
-          styles.ring,
-          styles.ringOuter,
+          styles.layer,
+          { opacity: dim, transform: [{ rotate: rotateBack }] },
+        ]}
+      >
+        <Svg width={SIZE} height={SIZE}>
+          <Circle
+            cx={C}
+            cy={C}
+            r={ARC_R}
+            stroke={color}
+            strokeWidth={2.2}
+            strokeDasharray={ARC_DASH}
+            fill="none"
+          />
+          <Circle
+            cx={C}
+            cy={C}
+            r={ARC_R - 9}
+            stroke={color}
+            strokeOpacity={0.45}
+            strokeWidth={1}
+            strokeDasharray="1.5 5"
+            fill="none"
+          />
+        </Svg>
+      </Animated.View>
+
+      {/* Segmented coil ring */}
+      <Animated.View
+        style={[
+          styles.layer,
           {
-            borderColor: color,
             opacity: dim,
-            transform: [{ rotate: rotateBack }],
+            transform: [{ rotate: coilRotate }, { scale: breathScale }],
           },
         ]}
       >
-        <View style={[styles.gap, { top: -3 }]} />
-        <View style={[styles.gap, { bottom: -3 }]} />
+        <Svg width={SIZE} height={SIZE}>
+          <Circle
+            cx={C}
+            cy={C}
+            r={COIL_R + 9}
+            stroke={color}
+            strokeOpacity={0.35}
+            strokeWidth={0.8}
+            fill="none"
+          />
+          <Circle
+            cx={C}
+            cy={C}
+            r={COIL_R}
+            stroke={color}
+            strokeOpacity={0.85}
+            strokeWidth={9}
+            strokeDasharray={COIL_DASH}
+            fill="none"
+          />
+          <Circle
+            cx={C}
+            cy={C}
+            r={COIL_R - 9}
+            stroke={color}
+            strokeOpacity={0.35}
+            strokeWidth={0.8}
+            fill="none"
+          />
+        </Svg>
       </Animated.View>
 
+      {/* Voice ring: expands with the microphone level */}
       <Animated.View
         style={[
-          styles.ring,
-          styles.ringInner,
-          {
-            borderColor: color,
-            opacity: dim,
-            transform: [{ scale: breathScale }],
-          },
+          styles.layer,
+          { opacity: voiceRingOpacity, transform: [{ scale: voiceRingScale }] },
         ]}
-      />
+      >
+        <Svg width={SIZE} height={SIZE}>
+          <Circle
+            cx={C}
+            cy={C}
+            r={C * 0.36}
+            stroke={color}
+            strokeWidth={1.5}
+            fill="none"
+          />
+        </Svg>
+      </Animated.View>
 
+      {/* Core */}
       <Animated.View
         style={[
-          styles.core,
+          styles.layer,
           {
-            backgroundColor: color,
-            shadowColor: color,
             opacity: userSpeaking ? 1 : 0.85 * dim + 0.15,
             transform: [{ scale: Animated.multiply(breathScale, levelScale) }],
           },
         ]}
       >
-        <View style={styles.coreInner} />
+        <Svg width={SIZE} height={SIZE}>
+          <Defs>
+            <RadialGradient id="core" cx="50%" cy="50%" r="50%">
+              <Stop offset="0" stopColor="#ffffff" stopOpacity="1" />
+              <Stop offset="0.22" stopColor="#e6fbff" stopOpacity="0.95" />
+              <Stop offset="0.4" stopColor={color} stopOpacity="0.85" />
+              <Stop offset="0.7" stopColor={color} stopOpacity="0.18" />
+              <Stop offset="1" stopColor={color} stopOpacity="0" />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={C} cy={C} r={C * 0.42} fill="url(#core)" />
+          <Circle
+            cx={C}
+            cy={C}
+            r={C * 0.2}
+            stroke="#e6fbff"
+            strokeOpacity={0.55}
+            strokeWidth={1}
+            fill="none"
+          />
+        </Svg>
       </Animated.View>
     </Pressable>
   );
@@ -203,64 +322,14 @@ const styles = StyleSheet.create({
   wrap: {
     width: SIZE,
     height: SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   // Explicit size instead of absoluteFill: with the native-driven rotation,
-  // an absoluteFill layer spun around the wrong pivot on Android, so the
-  // tick ring orbited around the core instead of turning in place.
+  // an absoluteFill layer spun around the wrong pivot on Android.
   layer: {
     position: 'absolute',
+    left: 0,
+    top: 0,
     width: SIZE,
     height: SIZE,
-  },
-  halo: {
-    position: 'absolute',
-    width: SIZE * 0.62,
-    height: SIZE * 0.62,
-    borderRadius: SIZE,
-  },
-  tick: {
-    position: 'absolute',
-    borderRadius: 2,
-  },
-  ring: {
-    position: 'absolute',
-    borderRadius: SIZE,
-    alignItems: 'center',
-  },
-  ringOuter: {
-    width: SIZE * 0.78,
-    height: SIZE * 0.78,
-    borderWidth: 2,
-  },
-  ringInner: {
-    width: SIZE * 0.56,
-    height: SIZE * 0.56,
-    borderWidth: 6,
-  },
-  gap: {
-    position: 'absolute',
-    width: 26,
-    height: 8,
-    backgroundColor: '#05080f',
-  },
-  core: {
-    width: SIZE * 0.3,
-    height: SIZE * 0.3,
-    borderRadius: SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowOpacity: 0.9,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 12,
-  },
-  coreInner: {
-    width: SIZE * 0.13,
-    height: SIZE * 0.13,
-    borderRadius: SIZE,
-    backgroundColor: '#e0fbff',
-    opacity: 0.9,
   },
 });

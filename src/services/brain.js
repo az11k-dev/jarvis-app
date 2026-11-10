@@ -5,6 +5,9 @@ import { runTool, TOOL_DEFINITIONS } from './tools';
 
 const MAX_TOOL_ROUNDS = 5;
 const MAX_HISTORY_ITEMS = 30;
+// Tools whose result needs no follow-up from the model when it already
+// gave a reply alongside them.
+const FINAL_TOOLS = new Set(['end_conversation', 'reset_conversation']);
 
 function instructions() {
   const now = new Date();
@@ -50,13 +53,14 @@ export class JarvisBrain {
 
   /**
    * Sends the user's words, runs any tools the model asks for, and returns
-   * `{ text, after: [fn], endConversation }`.
+   * `{ text, after: [fn], endConversation, resetConversation }`.
    */
   async respond(userText, { signal, onToolStart } = {}) {
     const turn = ++this.turns;
     const input = [...this.history, { role: 'user', content: userText }];
     const after = [];
     let endConversation = false;
+    let resetConversation = false;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const response = await createResponse(
@@ -68,16 +72,20 @@ export class JarvisBrain {
       );
       const text = outputText(response);
 
-      // A sign-off that comes with only end_conversation needs no follow-up.
-      const onlyEnding =
-        calls.length > 0 && calls.every((c) => c.name === 'end_conversation');
+      // A sign-off or "chat cleared" that comes with only final tools needs
+      // no follow-up.
+      const onlyFinal =
+        calls.length > 0 && calls.every((c) => FINAL_TOOLS.has(c.name));
 
-      if (!calls.length || (onlyEnding && text)) {
-        if (onlyEnding) endConversation = true;
+      if (!calls.length || (onlyFinal && text)) {
+        for (const c of calls) {
+          if (c.name === 'end_conversation') endConversation = true;
+          if (c.name === 'reset_conversation') resetConversation = true;
+        }
         input.push({ role: 'assistant', content: text || '…' });
         this.history = input;
         this.trimHistory();
-        return { text, after, endConversation };
+        return { text, after, endConversation, resetConversation };
       }
 
       for (const call of calls) {
@@ -90,6 +98,7 @@ export class JarvisBrain {
           output = result.output;
           if (result.after) after.push(result.after);
           if (result.endConversation) endConversation = true;
+          if (result.resetConversation) resetConversation = true;
         } catch (e) {
           output = { error: e.message };
         }
@@ -123,6 +132,7 @@ export class JarvisBrain {
           : 'Sir, the task turned out to be harder than expected.',
       after,
       endConversation,
+      resetConversation,
     };
   }
 }

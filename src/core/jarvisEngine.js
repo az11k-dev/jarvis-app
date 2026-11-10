@@ -87,6 +87,7 @@ const TOOL_ACTIVITY = {
   tg_send_message: 'Sending…',
   tg_delete_sent: 'Preparing to delete…',
   tg_confirm_delete: 'Deleting…',
+  reset_conversation: 'Clearing the chat…',
 };
 
 let messageId = 0;
@@ -660,6 +661,10 @@ export class JarvisEngine {
         }),
     });
     if (turn !== this.turn) return;
+
+    // "Reset the chat" by voice: same as the RESET button, but JARVIS's
+    // confirmation stays on the cleared screen.
+    if (reply.resetConversation) this.clearConversation();
 
     if (reply.text) {
       this.addMessage('jarvis', cleanForSpeech(reply.text));

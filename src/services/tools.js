@@ -274,6 +274,10 @@ export const TOOL_DEFINITIONS = [
     'end_conversation',
     'Call when the user says goodbye, thanks you to finish, or tells you to stand by. JARVIS goes back to waiting for the wake word.'
   ),
+  fn(
+    'reset_conversation',
+    'Clear the conversation: wipe the chat on screen and forget everything said so far, like the RESET button. Call when the user asks to reset, clear or start the chat over.'
+  ),
 ];
 
 async function openWithFallback(appUrl, webUrl) {
@@ -299,7 +303,7 @@ async function pickFromGallery() {
 }
 
 /**
- * Executes a tool call. Returns `{ output, after?, endConversation? }`.
+ * Executes a tool call. Returns `{ output, after?, endConversation?, resetConversation? }`.
  * `after` runs once JARVIS has finished speaking (used for anything that
  * switches to another app, so the reply isn't cut off).
  */
@@ -441,6 +445,12 @@ export async function runTool(name, args, { signal, turn } = {}) {
 
     case 'end_conversation':
       return { output: { status: 'standing_by' }, endConversation: true };
+
+    case 'reset_conversation':
+      return {
+        output: { status: 'cleared_after_reply' },
+        resetConversation: true,
+      };
 
     default:
       return { output: { error: `Unknown tool ${name}` } };

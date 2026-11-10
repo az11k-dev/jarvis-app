@@ -10,16 +10,16 @@ import {
 } from './telegramChats';
 
 /**
- * Things JARVIS does in Telegram on the user's behalf that others see —
- * sending a message, deleting the user's messages — always take two steps: the
- * action is prepared and read back, and it only runs in the user's next
- * turn. The turn check lives here, not in the prompt, so neither the model
- * nor text inside other people's messages can act without the user hearing
- * it and answering first.
+ * Sending goes out right away: the user asked for it, JARVIS doesn't ask
+ * again. Deleting messages for everyone can't be undone, so it takes two
+ * steps: it is prepared and read back, and only runs in the user's next
+ * turn. That turn check lives here, not in the prompt, so neither the model
+ * nor text inside other people's messages can delete without the user
+ * hearing it and answering first.
  */
 
 // The one action waiting for the user's answer:
-// { id, kind: 'send' | 'delete', turn, at, ...details }
+// { id, kind: 'delete', turn, at, ...details }
 let pending = null;
 let nextActionId = 1;
 
@@ -68,13 +68,14 @@ function takeConfirmed(kind, actionId, turn) {
  * Drops whatever waits for confirmation. Called when the user cuts JARVIS
  * off, so a read-back they didn't hear to the end can't be confirmed.
  */
-export function discardDraft() {
+export function discardPending() {
   pending = null;
 }
 
 // ── send ──────────────────────────────────────────────────────────────────
 
-export async function draftMessage({ chatId, text, replyToId }, { turn }) {
+/** Sends a message from the user's account and waits until Telegram confirms delivery. */
+export async function sendMessage({ chatId, text, replyToId }) {
   await requireReady();
   const body = String(text || '').trim();
   if (!body) return { error: 'The message is empty.' };
@@ -83,34 +84,19 @@ export async function draftMessage({ chatId, text, replyToId }, { turn }) {
   }
   const chat = await getChat(chatId);
   const replyTo = Number(replyToId) || 0;
-  let preview;
   if (replyTo) {
     try {
-      preview = await messagePreview(chat.id, replyTo);
+      await messagePreview(chat.id, replyTo);
     } catch {
       return { error: 'The message to reply to was not found in this chat.' };
     }
   }
-  const id = prepare('send', turn, {
+  const d = {
     chatId: chat.id,
     title: titleOf(chat),
     text: body,
     replyToId: replyTo,
-  });
-  return {
-    draft_id: id,
-    chat: titleOf(chat),
-    text: body,
-    reply_to: preview,
-    next: 'Not sent yet. Read the chat name and this exact text back to the user and ask whether to send it. Call tg_send_draft only if their next reply confirms.',
   };
-}
-
-/** Sends the draft and waits until Telegram confirms delivery. */
-export async function sendDraft(draftId, { turn }) {
-  const { action: d, error } = takeConfirmed('send', draftId, turn);
-  if (error) return { error };
-  await requireReady();
 
   // Delivery updates can reach JS before the sendMessage result does, so
   // listen first and match by the temporary message id afterwards.

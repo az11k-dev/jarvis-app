@@ -67,7 +67,7 @@ What you can say:
 | Unread chats and messages | «что нового в Телеграме?», «прочитай Азамата», «отметь как прочитанное»                                                     |
 | Summaries                 | «о чём говорили в рабочей группе?»                                                                                          |
 | Search                    | «найди сообщения про отчёт», «что Руслан писал про оплату?»                                                                 |
-| Send and reply            | «напиши Руслану: буду через десять минут», «ответь ему: хорошо», «ответь сам» (JARVIS suggests a reply)                     |
+| Send and reply            | «напиши Руслану: буду через десять минут», «ответь ему: хорошо», «ответь сам» (JARVIS writes and sends a reply)             |
 | Undo                      | «удали моё последнее сообщение» (deleted for everyone)                                                                      |
 | Announcements             | «озвучивай рабочую группу», «перестань озвучивать Руслана», «хватит озвучивать» / «возобнови», «озвучивай личные сообщения» |
 
@@ -77,10 +77,13 @@ chats, messages that mention you (on by default) and, if you turn it on, private
 people (not bots or muted chats). A burst of messages is announced together, and after an
 announcement «ответь ему: …» replies to that exact message.
 
-Before sending or deleting anything, JARVIS reads back the chat and the exact text, and the
-action runs only if your **next** phrase confirms it. That check lives in the code
-(`src/services/telegramSend.js`), not just in the prompt, so neither the model nor a message
-someone sent you can make JARVIS act on its own; interrupting the read-back cancels it.
+Messages are sent as soon as you ask, with no «Отправить?» round trip. JARVIS turns what you
+said into a clean message (or writes it itself: «ответь сам», «отправь это Алишеру»), says
+which chat it sent to, and asks first only when the text is sensitive (passwords, codes, card
+details, money, private matters). «удали моё последнее сообщение» takes one back. Deleting is the one action
+that is read back first: it runs only if your **next** phrase confirms it. That check lives in
+the code (`src/services/telegramSend.js`), not just in the prompt, so neither the model nor a
+message someone sent you can delete anything on its own; interrupting the read-back cancels it.
 
 > 🔒 Messages JARVIS reads, searches, summarizes or announces become part of the
 > conversation sent to OpenAI. Chats it doesn't open stay on the phone.

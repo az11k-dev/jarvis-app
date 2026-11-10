@@ -17,12 +17,7 @@ import {
   unreadChats,
 } from './telegramChats';
 import { controlAnnouncements, watchChat } from './telegramAnnounce';
-import {
-  confirmDelete,
-  draftMessage,
-  prepareDelete,
-  sendDraft,
-} from './telegramSend';
+import { confirmDelete, prepareDelete, sendMessage } from './telegramSend';
 
 const fn = (name, description, properties = {}, required = []) => ({
   type: 'function',
@@ -138,8 +133,8 @@ export const TOOL_DEFINITIONS = [
     ['chat_id']
   ),
   fn(
-    'tg_draft_message',
-    'Prepare a Telegram message from the user (their account) to a chat, optionally as a reply to a message. Nothing is sent: read it back and send with tg_send_draft after the user confirms.',
+    'tg_send_message',
+    "Send a Telegram message from the user's own account to a chat right away, optionally as a reply to a message.",
     {
       chat_id: {
         type: 'integer',
@@ -148,7 +143,7 @@ export const TOOL_DEFINITIONS = [
       text: {
         type: 'string',
         description:
-          "What to send: the user's dictated words (punctuation fixed, nothing added), or, only when the user asked you to answer for them, a short reply you wrote in their voice.",
+          'The message as the user would write it: their words cleaned up into a natural message, or a reply or content you wrote for them when they asked.',
       },
       reply_to_message_id: {
         type: 'integer',
@@ -157,17 +152,6 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['chat_id', 'text', 'reply_to_message_id']
-  ),
-  fn(
-    'tg_send_draft',
-    'Send the draft from tg_draft_message. Only after the user, in their reply to the read-back, confirmed sending.',
-    {
-      draft_id: {
-        type: 'string',
-        description: 'draft_id from tg_draft_message.',
-      },
-    },
-    ['draft_id']
   ),
   fn(
     'tg_delete_sent',
@@ -422,20 +406,14 @@ export async function runTool(name, args, { signal, turn } = {}) {
     case 'tg_mark_read':
       return { output: await markRead(args.chat_id) };
 
-    case 'tg_draft_message':
+    case 'tg_send_message':
       return {
-        output: await draftMessage(
-          {
-            chatId: args.chat_id,
-            text: args.text,
-            replyToId: args.reply_to_message_id,
-          },
-          { turn }
-        ),
+        output: await sendMessage({
+          chatId: args.chat_id,
+          text: args.text,
+          replyToId: args.reply_to_message_id,
+        }),
       };
-
-    case 'tg_send_draft':
-      return { output: await sendDraft(args.draft_id, { turn }) };
 
     case 'tg_delete_sent':
       return {

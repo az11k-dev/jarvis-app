@@ -24,7 +24,7 @@ function outputText(response) {
 export class JarvisBrain {
   history = [];
   // Counts user utterances; tools that need the user's answer first
-  // (sending a Telegram draft) check it. Never reset.
+  // (deleting Telegram messages) check it. Never reset.
   turns = 0;
 
   reset() {

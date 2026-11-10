@@ -25,7 +25,7 @@ import { localSpeech, SpeechNotReadyError } from '../services/localSpeech';
 import { MissingApiKeyError, transcribe } from '../services/openai';
 import { loadSettings, saveSettings } from '../services/settings';
 import { cleanForSpeech, voiceOutput } from '../services/voice';
-import { discardDraft } from '../services/telegramSend';
+import { discardPending } from '../services/telegramSend';
 
 /**
  * States:
@@ -83,8 +83,7 @@ const TOOL_ACTIVITY = {
   tg_watch_chat: 'Настраиваю…',
   tg_announcements: 'Настраиваю…',
   tg_remember_chat: 'Запоминаю…',
-  tg_draft_message: 'Готовлю сообщение…',
-  tg_send_draft: 'Отправляю…',
+  tg_send_message: 'Отправляю…',
   tg_delete_sent: 'Готовлю удаление…',
   tg_confirm_delete: 'Удаляю…',
 };
@@ -412,8 +411,8 @@ export class JarvisEngine {
 
   cancelTurn() {
     this.turn++;
-    // A Telegram draft whose read-back was cut off must not be confirmable.
-    discardDraft();
+    // A Telegram deletion whose read-back was cut off must not be confirmable.
+    discardPending();
     this.abort?.abort();
     this.abort = null;
     this.busy = false;

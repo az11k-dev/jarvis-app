@@ -25,6 +25,7 @@ import { localSpeech, SpeechNotReadyError } from '../services/localSpeech';
 import { MissingApiKeyError, transcribe } from '../services/openai';
 import { loadSettings, saveSettings } from '../services/settings';
 import { cleanForSpeech, voiceOutput } from '../services/voice';
+import { discardDraft } from '../services/telegramSend';
 
 /**
  * States:
@@ -79,6 +80,10 @@ const TOOL_ACTIVITY = {
   tg_read_messages: 'Читаю сообщения…',
   tg_mark_read: 'Отмечаю прочитанным…',
   tg_remember_chat: 'Запоминаю…',
+  tg_draft_message: 'Готовлю сообщение…',
+  tg_send_draft: 'Отправляю…',
+  tg_delete_sent: 'Готовлю удаление…',
+  tg_confirm_delete: 'Удаляю…',
 };
 
 let messageId = 0;
@@ -379,6 +384,8 @@ export class JarvisEngine {
 
   cancelTurn() {
     this.turn++;
+    // A Telegram draft whose read-back was cut off must not be confirmable.
+    discardDraft();
     this.abort?.abort();
     this.abort = null;
     this.busy = false;

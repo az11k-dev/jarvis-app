@@ -20,7 +20,7 @@ class TelegramNotReadyError extends Error {
 // The user's own Telegram id; filled by requireReady().
 let myId = null;
 
-async function requireReady() {
+export async function requireReady() {
   if (getState().step !== 'ready') throw new TelegramNotReadyError();
   if (!myId)
     myId = getState().me?.id ?? (await Td.send({ '@type': 'getMe' })).id;
@@ -70,7 +70,8 @@ async function isMuted(chat) {
   return scopeMuteFor.get(scope) > 0;
 }
 
-const getChat = (chatId) => send({ '@type': 'getChat', chat_id: chatId });
+export const getChat = (chatId) =>
+  send({ '@type': 'getChat', chat_id: chatId });
 
 // TDLib titles the chat with yourself with your own name; the apps call it
 // Saved Messages («Избранное»).
@@ -81,7 +82,7 @@ const SAVED_NAME = /^(избранн|сохранен|saved\b)/;
 const isSaved = (chat) =>
   chat.type?.['@type'] === 'chatTypePrivate' && chat.type.user_id === myId;
 
-const titleOf = (chat) =>
+export const titleOf = (chat) =>
   isSaved(chat) ? SAVED_TITLE : chat.title || 'Deleted account';
 
 /** Chats of the main list in Telegram's order (pinned, then most recent). */
@@ -264,17 +265,26 @@ const SEARCHES = [
  */
 export async function findChat(name) {
   await requireReady();
-  const summaries = async (chats) => ({
+  // found_by tells the model whether the name is worth remembering.
+  const summaries = async (chats, foundBy) => ({
+    found_by: foundBy,
     matches: await Promise.all(chats.slice(0, 5).map(chatSummary)),
   });
 
   if (SAVED_NAME.test(normalize(name))) {
-    return summaries([
-      await send({ '@type': 'createPrivateChat', user_id: myId, force: false }),
-    ]);
+    return summaries(
+      [
+        await send({
+          '@type': 'createPrivateChat',
+          user_id: myId,
+          force: false,
+        }),
+      ],
+      'name'
+    );
   }
   const alias = (await loadAliases())[normalize(name)];
-  if (alias) return summaries([await getChat(alias.chat_id)]);
+  if (alias) return summaries([await getChat(alias.chat_id)], 'alias');
 
   const loaded = await mainChats(TELEGRAM_READ.chatsScanned);
   const scored = loaded
@@ -282,13 +292,16 @@ export async function findChat(name) {
     .filter((m) => m.score > 0);
   if (scored.length) {
     const best = Math.max(...scored.map((m) => m.score));
-    return summaries(scored.filter((m) => m.score === best).map((m) => m.chat));
+    return summaries(
+      scored.filter((m) => m.score === best).map((m) => m.chat),
+      'title'
+    );
   }
 
   for (const search of SEARCHES) {
     try {
       const chats = await search(name);
-      if (chats.length) return summaries(chats);
+      if (chats.length) return summaries(chats, 'search');
     } catch (e) {
       if (__DEV__) console.warn('Telegram search failed:', e.message);
     }
@@ -493,4 +506,26 @@ export async function markRead(chatId) {
     });
   }
   return { status: 'marked_read', chat: titleOf(chat) };
+}
+
+/** Who wrote a message and its first words, to confirm what a reply answers. */
+export async function messagePreview(chatId, messageId) {
+  const m = await send({
+    '@type': 'getMessage',
+    chat_id: chatId,
+    message_id: messageId,
+  });
+  return {
+    from: await senderName(m.sender_id, myId),
+    text: clip(contentText(m.content), 120),
+  };
+}
+
+/** The user's own newest messages in a chat (newest first), for undo. */
+export async function myRecentMessages(chatId, count) {
+  const { messages } = await history(chatId, { limit: 50 });
+  return messages
+    .filter((m) => m.is_outgoing)
+    .slice(0, count)
+    .map((m) => ({ id: m.id, text: clip(contentText(m.content), 200) }));
 }

@@ -23,6 +23,9 @@ function outputText(response) {
 /** Conversation state + the tool-calling loop. */
 export class JarvisBrain {
   history = [];
+  // Counts user utterances; tools that need the user's answer first
+  // (sending a Telegram draft) check it. Never reset.
+  turns = 0;
 
   reset() {
     this.history = [];
@@ -43,6 +46,7 @@ export class JarvisBrain {
    * `{ text, after: [fn], endConversation }`.
    */
   async respond(userText, { signal, onToolStart } = {}) {
+    const turn = ++this.turns;
     const input = [...this.history, { role: 'user', content: userText }];
     const after = [];
     let endConversation = false;
@@ -75,7 +79,7 @@ export class JarvisBrain {
         let output;
         try {
           const args = call.arguments ? JSON.parse(call.arguments) : {};
-          const result = await runTool(call.name, args, { signal });
+          const result = await runTool(call.name, args, { signal, turn });
           output = result.output;
           if (result.after) after.push(result.after);
           if (result.endConversation) endConversation = true;

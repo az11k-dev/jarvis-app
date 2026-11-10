@@ -15,6 +15,12 @@ import {
   rememberChatName,
   unreadChats,
 } from './telegramChats';
+import {
+  confirmDelete,
+  draftMessage,
+  prepareDelete,
+  sendDraft,
+} from './telegramSend';
 
 const fn = (name, description, properties = {}, required = []) => ({
   type: 'function',
@@ -102,6 +108,64 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['chat_id']
+  ),
+  fn(
+    'tg_draft_message',
+    'Prepare a Telegram message from the user (their account) to a chat, optionally as a reply to a message. Nothing is sent: read it back and send with tg_send_draft after the user confirms.',
+    {
+      chat_id: {
+        type: 'integer',
+        description: 'chat_id from tg_unread_chats or tg_find_chat.',
+      },
+      text: {
+        type: 'string',
+        description:
+          "What to send: the user's dictated words (punctuation fixed, nothing added), or, only when the user asked you to answer for them, a short reply you wrote in their voice.",
+      },
+      reply_to_message_id: {
+        type: 'integer',
+        description:
+          'id of the message being answered (from tg_read_messages), or 0 for a plain message.',
+      },
+    },
+    ['chat_id', 'text', 'reply_to_message_id']
+  ),
+  fn(
+    'tg_send_draft',
+    'Send the draft from tg_draft_message. Only after the user, in their reply to the read-back, confirmed sending.',
+    {
+      draft_id: {
+        type: 'string',
+        description: 'draft_id from tg_draft_message.',
+      },
+    },
+    ['draft_id']
+  ),
+  fn(
+    'tg_delete_sent',
+    "Prepare deleting, for everyone, the user's own latest messages in a Telegram chat (e.g. to undo a mistake). Nothing is deleted yet: confirm with tg_confirm_delete after the user agrees. Never deletes other people's messages.",
+    {
+      chat_id: {
+        type: 'integer',
+        description: 'chat_id from tg_unread_chats or tg_find_chat.',
+      },
+      count: {
+        type: 'integer',
+        description: "How many of the user's latest messages (1-5, default 1).",
+      },
+    },
+    ['chat_id', 'count']
+  ),
+  fn(
+    'tg_confirm_delete',
+    'Delete the message prepared by tg_delete_sent. Only after the user, in their reply, confirmed.',
+    {
+      action_id: {
+        type: 'string',
+        description: 'action_id from tg_delete_sent.',
+      },
+    },
+    ['action_id']
   ),
   fn(
     'tg_remember_chat',
@@ -193,7 +257,7 @@ async function pickFromGallery() {
  * `after` runs once JARVIS has finished speaking (used for anything that
  * switches to another app, so the reply isn't cut off).
  */
-export async function runTool(name, args, { signal } = {}) {
+export async function runTool(name, args, { signal, turn } = {}) {
   switch (name) {
     case 'analyze_image': {
       const base64 =
@@ -287,6 +351,29 @@ export async function runTool(name, args, { signal } = {}) {
 
     case 'tg_mark_read':
       return { output: await markRead(args.chat_id) };
+
+    case 'tg_draft_message':
+      return {
+        output: await draftMessage(
+          {
+            chatId: args.chat_id,
+            text: args.text,
+            replyToId: args.reply_to_message_id,
+          },
+          { turn }
+        ),
+      };
+
+    case 'tg_send_draft':
+      return { output: await sendDraft(args.draft_id, { turn }) };
+
+    case 'tg_delete_sent':
+      return {
+        output: await prepareDelete(args.chat_id, args.count, { turn }),
+      };
+
+    case 'tg_confirm_delete':
+      return { output: await confirmDelete(args.action_id, { turn }) };
 
     case 'tg_remember_chat':
       return {

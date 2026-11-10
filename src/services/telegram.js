@@ -23,6 +23,26 @@ function setState(patch) {
 
 export const getState = () => state;
 
+// Other TDLib updates JS code listens to, by @type. The native side only
+// forwards the types listed here.
+const updateHandlers = new Map();
+
+/** handler(update) for every TDLib update of `type`; returns unsubscribe. */
+export function onTelegramUpdate(type, handler) {
+  if (!Td.isSupported) return () => {};
+  if (!updateHandlers.has(type)) updateHandlers.set(type, new Set());
+  updateHandlers.get(type).add(handler);
+  Td.setForwardedUpdates([...updateHandlers.keys()]);
+  return () => {
+    const handlers = updateHandlers.get(type);
+    handlers?.delete(handler);
+    if (handlers && !handlers.size) {
+      updateHandlers.delete(type);
+      Td.setForwardedUpdates([...updateHandlers.keys()]);
+    }
+  };
+}
+
 export function subscribe(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -84,7 +104,9 @@ export async function startTelegram() {
     if (update['@type'] === 'updateAuthorizationState') {
       sawUpdate = true;
       onAuthState(update.authorization_state);
+      return;
     }
+    updateHandlers.get(update['@type'])?.forEach((handler) => handler(update));
   });
   Td.start(TELEGRAM_API_ID, TELEGRAM_API_HASH);
   // The client outlives JS reloads, so its auth update may have gone out

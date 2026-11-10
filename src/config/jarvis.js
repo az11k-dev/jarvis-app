@@ -189,3 +189,11 @@ export const TELEGRAM_READ = {
   maxMessages: 50,
   maxMessageChars: 800, // longer messages are cut
 };
+
+// Sending Telegram messages (always drafted, read back and confirmed).
+export const TELEGRAM_SEND = {
+  draftTtlMs: 2 * 60 * 1000, // a draft must be confirmed within this time
+  deliveryTimeoutMs: 15000, // wait this long for Telegram to confirm delivery
+  maxChars: 4096, // Telegram's limit for one text message
+  maxDelete: 5, // most of the user's own messages deleted at once
+};

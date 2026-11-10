@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `open_url` action; reminders are read aloud by JARVIS when they fire
 - `list_reminders` and `cancel_reminder` tools: ask JARVIS which reminders are set, cancel one or move it to another time
 - Vision: `analyze_image` tool — JARVIS opens an in-app scanner (`expo-camera`) that shoots by itself after focusing — back or selfie camera — or picks from the gallery, sends the photo to a vision model and reports what it sees, reads or translates text (`EXPO_PUBLIC_OPENAI_VISION_MODEL` overrides the model)
+- Telegram as the user's own account on Android (local module `modules/jarvis-telegram`, TDLib, `EXPO_PUBLIC_TG_API_ID`/`EXPO_PUBLIC_TG_API_HASH`): log in from the ✈️ Telegram window (phone, code, two-step password), with the session database encrypted by an Android Keystore key. By voice: list unread chats, read and summarize a chat, mark it read, search messages by word and sender, send and reply, compose a reply on request, delete your own last messages for everyone, and have new messages from watched chats, mentions and (optionally) private chats read out as they arrive. Sending and deleting are read back and run only when the user's next phrase confirms, enforced in code
 - Background listening on Android: a microphone foreground service (local module `modules/jarvis-background`) keeps the wake word working with the app in the background or the screen off, with a «Выключить» action in its notification
 
 ### Fixed

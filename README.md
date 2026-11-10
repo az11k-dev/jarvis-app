@@ -20,6 +20,7 @@ This is the core version focusing on voice input and intelligent response.
 - 🧠 **Tool-calling brain** – OpenAI Responses API with function calling and built-in web search for live facts, weather and news
 - 🔊 **Neural JARVIS voice** – On-device Piper voices (Ruslan for Russian, Alan for English), synthesized and played sentence by sentence. Falls back to the device voice while a model is downloading and on iOS
 - 👁️ **Vision** – _«Джарвис, что это?»_, _"Jarvis, read this"_, _«переведи табличку»_: JARVIS opens its scanner HUD, takes the shot by itself once the focus settles and reports what it sees — objects, products, plants, text read aloud or translated. Say "from the gallery" to analyse an existing photo
+- ✈️ **Telegram as you** – Log in with your own account and work with it by voice: _«что нового в Телеграме?»_, _«прочитай рабочую группу»_, _«найди, что Руслан писал про оплату»_, _«ответь ему: буду в пять»_. JARVIS can read out new messages from chats you choose as they arrive. Nothing is sent or deleted until JARVIS reads it back and you say «да» (Android only)
 - 🌐 **Actions** – Open YouTube (with search), Telegram or any website; set reminders that JARVIS reads aloud
 - ⚙️ **Cross-Platform** – Expo SDK 58, iOS and Android (on-device wake word, offline speech and background listening are Android-only for now)
 
@@ -49,7 +50,40 @@ notification, and tapping **Выключить** there turns the mic off. Some v
 (Samsung, Xiaomi…) may still kill background apps; set JARVIS's battery usage to
 _Unrestricted_ if it stops listening after a while.
 
-All tuning (thresholds, command window, models, voices) lives in `src/config/jarvis.js`.
+All tuning (thresholds, command window, models, voices, Telegram limits) lives in `src/config/jarvis.js`.
+
+### Telegram
+
+JARVIS logs in to Telegram as **you** (not as a bot) through TDLib (`modules/jarvis-telegram`,
+Android only). Tap **✈️ Telegram** on the main screen, then enter your phone number, the
+login code and, if you use one, your two-step verification password. The session stays on
+the phone, in a TDLib database encrypted with a key held by the Android Keystore.
+**Выйти из Telegram** in the same window ends it.
+
+What you can say:
+
+|                           | Example                                                                                                                     |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Unread chats and messages | «что нового в Телеграме?», «прочитай Азамата», «отметь как прочитанное»                                                     |
+| Summaries                 | «о чём говорили в рабочей группе?»                                                                                          |
+| Search                    | «найди сообщения про отчёт», «что Руслан писал про оплату?»                                                                 |
+| Send and reply            | «напиши Руслану: буду через десять минут», «ответь ему: хорошо», «ответь сам» (JARVIS suggests a reply)                     |
+| Undo                      | «удали моё последнее сообщение» (deleted for everyone)                                                                      |
+| Announcements             | «озвучивай рабочую группу», «перестань озвучивать Руслана», «хватит озвучивать» / «возобнови», «озвучивай личные сообщения» |
+
+Chats are found by name, including Cyrillic/Latin spellings and names you gave them before
+(«рабочая группа»). Announcements are spoken while JARVIS is idle: messages from watched
+chats, messages that mention you (on by default) and, if you turn it on, private chats with
+people (not bots or muted chats). A burst of messages is announced together, and after an
+announcement «ответь ему: …» replies to that exact message.
+
+Before sending or deleting anything, JARVIS reads back the chat and the exact text, and the
+action runs only if your **next** phrase confirms it. That check lives in the code
+(`src/services/telegramSend.js`), not just in the prompt, so neither the model nor a message
+someone sent you can make JARVIS act on its own; interrupting the read-back cancels it.
+
+> 🔒 Messages JARVIS reads, searches, summarizes or announces become part of the
+> conversation sent to OpenAI. Chats it doesn't open stay on the phone.
 
 ---
 
@@ -93,6 +127,9 @@ Create a `.env` file (see `.env.example`):
 
 ```
 EXPO_PUBLIC_OPENAI_API_KEY=your_openai_key
+# Optional, for Telegram: https://my.telegram.org → API development tools
+EXPO_PUBLIC_TG_API_ID=12345678
+EXPO_PUBLIC_TG_API_HASH=your_api_hash
 ```
 
 > ⚠️ `EXPO_PUBLIC_*` variables are embedded in the app bundle. Don't ship a build with

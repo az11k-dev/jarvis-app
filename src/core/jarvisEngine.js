@@ -26,6 +26,7 @@ import { MissingApiKeyError, transcribe } from '../services/openai';
 import { loadSettings, saveSettings } from '../services/settings';
 import { cleanForSpeech, voiceOutput } from '../services/voice';
 import { discardPending } from '../services/telegramSend';
+import { speechLanguage } from '../utils/language';
 
 /**
  * States:
@@ -114,6 +115,10 @@ export class JarvisEngine {
     error: null,
     activity: null,
   };
+
+  // The language the user last spoke ('ru' | 'en'), for replies made in
+  // code — e.g. when the turn fails before there is a transcript.
+  lang = 'en';
 
   constructor() {
     this.vad = new VoiceActivityDetector({
@@ -511,6 +516,7 @@ export class JarvisEngine {
         return;
       }
       engaged = true;
+      this.lang = speechLanguage(text, this.lang);
       if (rest?.length === 0) {
         // Just "Jarvis" — acknowledge and listen for the command.
         this.addMessage('user', text);
@@ -550,10 +556,15 @@ export class JarvisEngine {
         });
         return;
       }
+      const ru = this.lang === 'ru';
       const message =
         e instanceof MissingApiKeyError
-          ? 'Сэр, не найден ключ OpenAI. Добавьте его в файл .env.'
-          : 'Сэр, возникла проблема со связью. Повторите, пожалуйста.';
+          ? ru
+            ? 'Сэр, не найден ключ OpenAI. Добавьте его в файл .env.'
+            : 'Sir, I can’t find the OpenAI key. Please add it to the .env file.'
+          : ru
+            ? 'Сэр, возникла проблема со связью. Повторите, пожалуйста.'
+            : 'Sir, there’s a connection problem. Please say that again.';
       this.addMessage('error', e.message);
       await this.say(message);
       if (turn === this.turn) this.resumeAfterSpeaking();

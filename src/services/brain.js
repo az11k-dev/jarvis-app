@@ -1,4 +1,5 @@
 import { JARVIS_INSTRUCTIONS } from '../utils/constants';
+import { speechLanguage } from '../utils/language';
 import { createResponse } from './openai';
 import { runTool, TOOL_DEFINITIONS } from './tools';
 
@@ -116,7 +117,10 @@ export class JarvisBrain {
     this.history = input;
     this.trimHistory();
     return {
-      text: 'Сэр, задача оказалась сложнее, чем ожидалось.',
+      text:
+        speechLanguage(userText) === 'ru'
+          ? 'Сэр, задача оказалась сложнее, чем ожидалось.'
+          : 'Sir, the task turned out to be harder than expected.',
       after,
       endConversation,
     };

@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Fallback replies (task too complex, missing OpenAI key, connection problem) were always in Russian; they now follow the language the user spoke
 - The wake word did nothing on iOS: the on-device recognizer only exists on Android, so standby phrases were silently dropped. iOS now looks for the wake word in the OpenAI transcript; on Android the standby hint says to tap the core until the on-device model has downloaded
 - Returning to the app in the middle of a turn (e.g. from the camera) reset JARVIS to standby while it was still thinking
 - Repository names with dashes were mangled (markdown stripping removed `-`)

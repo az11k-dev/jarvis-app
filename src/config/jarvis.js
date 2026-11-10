@@ -179,3 +179,13 @@ export const ACK_PHRASES = {
 // From https://my.telegram.org → API development tools.
 export const TELEGRAM_API_ID = Number(process.env.EXPO_PUBLIC_TG_API_ID) || 0;
 export const TELEGRAM_API_HASH = process.env.EXPO_PUBLIC_TG_API_HASH || '';
+
+// How much of Telegram JARVIS reads per request (keeps answers and token
+// use small; "read more" asks again with a higher limit).
+export const TELEGRAM_READ = {
+  chatsScanned: 100, // main-list chats checked for unread messages
+  maxUnreadChats: 20, // chats with unread messages listed at once
+  defaultMessages: 20,
+  maxMessages: 50,
+  maxMessageChars: 800, // longer messages are cut
+};

@@ -9,7 +9,9 @@ import * as Speech from 'expo-speech';
  * microphone hears it exactly like a person talking. Engine state changes
  * are logged to logcat (tag ReactNativeJS) with a [jarvis] prefix;
  * `exp+jarvis-app://debug?telemetry=on` adds per-second mic levels;
- * `?say=<text>` makes JARVIS itself say the text (tests his voice).
+ * `?say=<text>` makes JARVIS itself say the text (tests his voice);
+ * `?ask=<text>` runs a command as if spoken, skipping speech recognition
+ * (`?new&ask=…` starts a fresh conversation first).
  */
 export function attachDebugBridge(engine) {
   let last = {};
@@ -65,6 +67,17 @@ export function attachDebugBridge(engine) {
       const [, lang, id] = pick;
       console.log(`[jarvis] debug voice: ${lang}=${id}`);
       engine.setVoice({ ...base, engine: 'local', [lang]: id }, lang);
+      return;
+    }
+    if (/[?&]new\b/.test(url || '')) {
+      console.log('[jarvis] debug: new conversation');
+      engine.clearConversation();
+    }
+    const ask = /[?&]ask=([^&]+)/.exec(url || '');
+    if (ask) {
+      const text = decodeURIComponent(ask[1].replace(/\+/g, ' '));
+      console.log(`[jarvis] debug ask: ${text}`);
+      engine.ask(text);
       return;
     }
     const say = /[?&]say=([^&]+)/.exec(url || '');

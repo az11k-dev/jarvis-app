@@ -8,6 +8,13 @@ import {
 } from './notificationsService';
 import { analyzeImage } from './openai';
 import { scanWithCamera } from './scanner';
+import {
+  findChat,
+  markRead,
+  readMessages,
+  rememberChatName,
+  unreadChats,
+} from './telegramChats';
 
 const fn = (name, description, properties = {}, required = []) => ({
   type: 'function',
@@ -49,6 +56,68 @@ export const TOOL_DEFINITIONS = [
     ['question', 'source', 'facing']
   ),
   fn('open_telegram', 'Open the Telegram app.'),
+  fn(
+    'tg_unread_chats',
+    "List the user's Telegram chats that have unread messages, with unread counts, mentions of the user, and whether the chat is muted."
+  ),
+  fn(
+    'tg_find_chat',
+    'Find a Telegram chat (person, group or channel) by the name the user said. Returns matches with chat_id; if nothing matches, returns recent chats so you can pick the one the user meant (names may be transliterated, e.g. Алишер = Alisher).',
+    {
+      name: {
+        type: 'string',
+        description: 'The chat name as the user said it.',
+      },
+    },
+    ['name']
+  ),
+  fn(
+    'tg_read_messages',
+    'Read messages of a Telegram chat, oldest first. Does not mark them as read.',
+    {
+      chat_id: {
+        type: 'integer',
+        description: 'chat_id from tg_unread_chats or tg_find_chat.',
+      },
+      mode: {
+        type: 'string',
+        enum: ['unread', 'recent'],
+        description:
+          'unread: only messages the user has not read (default). recent: the last messages regardless of read state.',
+      },
+      limit: {
+        type: 'integer',
+        description: 'How many messages at most (default 20, max 50).',
+      },
+    },
+    ['chat_id', 'mode', 'limit']
+  ),
+  fn(
+    'tg_mark_read',
+    'Mark all messages in a Telegram chat as read. Only when the user asks.',
+    {
+      chat_id: {
+        type: 'integer',
+        description: 'chat_id from tg_unread_chats or tg_find_chat.',
+      },
+    },
+    ['chat_id']
+  ),
+  fn(
+    'tg_remember_chat',
+    'Remember a name the user gives a Telegram chat (e.g. «рабочая группа» → the team chat), so tg_find_chat finds it by that name from now on.',
+    {
+      alias: {
+        type: 'string',
+        description: 'The name the user uses for the chat.',
+      },
+      chat_id: {
+        type: 'integer',
+        description: 'chat_id from tg_unread_chats or tg_find_chat.',
+      },
+    },
+    ['alias', 'chat_id']
+  ),
   fn(
     'open_youtube',
     'Open YouTube, optionally searching for something.',
@@ -201,6 +270,28 @@ export async function runTool(name, args, { signal } = {}) {
           : { error: 'No pending reminder with that id.' },
       };
     }
+
+    case 'tg_unread_chats':
+      return { output: await unreadChats() };
+
+    case 'tg_find_chat':
+      return { output: await findChat(String(args.name || '')) };
+
+    case 'tg_read_messages':
+      return {
+        output: await readMessages(args.chat_id, {
+          mode: args.mode,
+          limit: args.limit,
+        }),
+      };
+
+    case 'tg_mark_read':
+      return { output: await markRead(args.chat_id) };
+
+    case 'tg_remember_chat':
+      return {
+        output: await rememberChatName(String(args.alias || ''), args.chat_id),
+      };
 
     case 'end_conversation':
       return { output: { status: 'standing_by' }, endConversation: true };

@@ -74,6 +74,11 @@ const isNoise = (text) =>
 const TOOL_ACTIVITY = {
   web_search: 'Ищу в сети…',
   analyze_image: 'Анализирую…',
+  tg_unread_chats: 'Проверяю Telegram…',
+  tg_find_chat: 'Ищу чат…',
+  tg_read_messages: 'Читаю сообщения…',
+  tg_mark_read: 'Отмечаю прочитанным…',
+  tg_remember_chat: 'Запоминаю…',
 };
 
 let messageId = 0;
@@ -570,6 +575,28 @@ export class JarvisEngine {
     }
     if (localSpeech.sttReady) return localSpeech.transcribe(wav);
     throw new SpeechNotReadyError();
+  }
+
+  /** Runs a typed command as if it had been spoken (dev bridge `?ask=`). */
+  async ask(text) {
+    this.cancelTurn();
+    this.clearFollowUp();
+    const turn = ++this.turn;
+    this.busy = true;
+    this.abort = new AbortController();
+    const { signal } = this.abort;
+    try {
+      await this.converse(text, turn, signal);
+    } catch (e) {
+      if (turn !== this.turn || signal.aborted) return;
+      this.addMessage('error', e.message);
+      this.resumeAfterSpeaking();
+    } finally {
+      if (turn === this.turn) {
+        this.busy = false;
+        this.abort = null;
+      }
+    }
   }
 
   async converse(text, turn, signal) {

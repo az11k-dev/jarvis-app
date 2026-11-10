@@ -80,6 +80,8 @@ const TOOL_ACTIVITY = {
   tg_read_messages: 'Читаю сообщения…',
   tg_mark_read: 'Отмечаю прочитанным…',
   tg_search_messages: 'Ищу в сообщениях…',
+  tg_watch_chat: 'Настраиваю…',
+  tg_announcements: 'Настраиваю…',
   tg_remember_chat: 'Запоминаю…',
   tg_draft_message: 'Готовлю сообщение…',
   tg_send_draft: 'Отправляю…',
@@ -343,6 +345,31 @@ export class JarvisEngine {
   }
 
   /** Speak something not triggered by the user (e.g. a reminder). */
+  /** Nothing going on: waiting for the wake word, not busy, not speaking. */
+  isIdle() {
+    return !this.disposed && this.status === 'standby' && !this.busy;
+  }
+
+  /**
+   * Speaks new Telegram messages, then listens briefly so the user can
+   * answer without the wake word. `note` (with message ids) goes into the
+   * conversation so «ответь ему» knows what "him" is.
+   */
+  async announceIncoming(text, note) {
+    if (!this.isIdle()) return false;
+    const turn = ++this.turn;
+    this.busy = true;
+    this.brain.note(note);
+    this.addMessage('jarvis', text);
+    try {
+      await this.say(text);
+    } finally {
+      if (turn === this.turn) this.busy = false;
+    }
+    if (turn === this.turn) this.resumeAfterSpeaking('listening');
+    return true;
+  }
+
   async announce(text) {
     this.addMessage('jarvis', text);
     if (this.status === 'thinking' || this.status === 'speaking') return;

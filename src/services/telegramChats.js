@@ -1,6 +1,6 @@
 import { File, Paths } from 'expo-file-system';
 import * as Td from '../../modules/jarvis-telegram';
-import { TELEGRAM_READ } from '../config/jarvis';
+import { TELEGRAM_ANNOUNCE, TELEGRAM_READ } from '../config/jarvis';
 import { getState } from './telegram';
 
 /**
@@ -607,4 +607,26 @@ export async function searchMessages(chatId, query, { from, limit } = {}) {
     });
   }
   return { found: results.length, newest_first: true, messages: results };
+}
+
+export async function isChatMuted(chatId) {
+  return isMuted(await getChat(chatId));
+}
+
+/**
+ * A new message for an announcement: who wrote it, its text for the model,
+ * and a shorter spoken version (links said as «ссылка»).
+ */
+export async function describeMessage(m) {
+  await requireReady();
+  const text = contentText(m.content);
+  return {
+    id: m.id,
+    from: await senderName(m.sender_id, myId),
+    text: clip(text, TELEGRAM_READ.maxMessageChars),
+    spoken: clip(
+      text.replace(/https?:\/\/\S+/g, 'ссылка'),
+      TELEGRAM_ANNOUNCE.maxChars
+    ),
+  };
 }

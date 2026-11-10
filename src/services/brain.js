@@ -31,6 +31,12 @@ export class JarvisBrain {
     this.history = [];
   }
 
+  /** Adds something JARVIS said on its own (e.g. announced messages). */
+  note(text) {
+    this.history.push({ role: 'assistant', content: text });
+    this.trimHistory();
+  }
+
   trimHistory() {
     if (this.history.length <= MAX_HISTORY_ITEMS) return;
     let start = this.history.length - MAX_HISTORY_ITEMS;

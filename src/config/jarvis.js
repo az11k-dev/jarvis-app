@@ -199,3 +199,13 @@ export const TELEGRAM_SEND = {
   maxChars: 4096, // Telegram's limit for one text message
   maxDelete: 5, // most of the user's own messages deleted at once
 };
+
+// Speaking new Telegram messages (watched chats, mentions, private chats).
+export const TELEGRAM_ANNOUNCE = {
+  batchMs: 4000, // wait this long for more messages before speaking
+  minGapMs: 15000, // at least this long between announcements
+  retryMs: 3000, // re-check this often while JARVIS is busy
+  maxAgeSec: 300, // skip messages older than this (e.g. after reconnecting)
+  maxSpokenPerChat: 3, // more than this is announced as a count
+  maxChars: 200, // longer messages are cut when spoken
+};

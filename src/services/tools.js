@@ -16,6 +16,7 @@ import {
   searchMessages,
   unreadChats,
 } from './telegramChats';
+import { controlAnnouncements, watchChat } from './telegramAnnounce';
 import {
   confirmDelete,
   draftMessage,
@@ -193,6 +194,40 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['action_id']
+  ),
+  fn(
+    'tg_watch_chat',
+    'Start or stop speaking new messages from a Telegram chat as they arrive.',
+    {
+      chat_id: {
+        type: 'integer',
+        description: 'chat_id from tg_unread_chats or tg_find_chat.',
+      },
+      watch: {
+        type: 'boolean',
+        description: 'true to announce its new messages, false to stop.',
+      },
+    },
+    ['chat_id', 'watch']
+  ),
+  fn(
+    'tg_announcements',
+    'Show or change which new Telegram messages JARVIS speaks: pause/resume all, mentions of the user on/off, private chats on/off. status lists the watched chats.',
+    {
+      action: {
+        type: 'string',
+        enum: [
+          'status',
+          'pause',
+          'resume',
+          'mentions_on',
+          'mentions_off',
+          'private_on',
+          'private_off',
+        ],
+      },
+    },
+    ['action']
   ),
   fn(
     'tg_remember_chat',
@@ -409,6 +444,17 @@ export async function runTool(name, args, { signal, turn } = {}) {
 
     case 'tg_confirm_delete':
       return { output: await confirmDelete(args.action_id, { turn }) };
+
+    case 'tg_watch_chat':
+      return {
+        output: await watchChat(
+          args.chat_id,
+          args.watch === true || args.watch === 'true'
+        ),
+      };
+
+    case 'tg_announcements':
+      return { output: await controlAnnouncements(String(args.action)) };
 
     case 'tg_remember_chat':
       return {

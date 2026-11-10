@@ -5,6 +5,7 @@ import * as Notifications from 'expo-notifications';
 import { useKeepAwake } from 'expo-keep-awake';
 import { AUDIO_FORMAT } from '../config/jarvis';
 import { JarvisEngine } from '../core/jarvisEngine';
+import { startAnnouncer } from '../services/telegramAnnounce';
 import * as Background from '../../modules/jarvis-background';
 
 /** Wires the JARVIS engine to the microphone, app lifecycle and React. */
@@ -57,6 +58,10 @@ export function useJarvis() {
     );
     return () => sub.remove();
   }, [engine]);
+
+  // New Telegram messages from watched chats, mentions (and private chats
+  // if turned on) are spoken while JARVIS is idle.
+  useEffect(() => startAnnouncer(engine), [engine]);
 
   // Reminders fire as notifications; JARVIS reads them out when the app is open.
   useEffect(() => {

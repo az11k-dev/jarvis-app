@@ -125,7 +125,7 @@ export default function VisionScanner() {
             }
           />
           <View style={s.overlay} pointerEvents="none">
-            <Text style={s.title}>СКАНИРОВАНИЕ</Text>
+            <Text style={s.title}>SCANNING</Text>
             <View style={s.frame}>
               <View style={[s.corner, s.tl]} />
               <View style={[s.corner, s.tr]} />
@@ -135,9 +135,7 @@ export default function VisionScanner() {
                 style={[s.sweep, { transform: [{ translateY }] }]}
               />
             </View>
-            <Text style={s.hint}>
-              Держите ровно · коснитесь, чтобы отменить
-            </Text>
+            <Text style={s.hint}>Hold steady · tap to cancel</Text>
           </View>
         </Pressable>
       )}

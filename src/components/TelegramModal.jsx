@@ -13,10 +13,11 @@ import { COLORS, styles } from '../styles/mainStyles';
 
 const CODE_SOURCE = {
   authenticationCodeTypeTelegramMessage:
-    'Код отправлен в Telegram на другом устройстве.',
-  authenticationCodeTypeSms: 'Код отправлен по SMS.',
-  authenticationCodeTypeCall: 'Код продиктуют в звонке.',
-  authenticationCodeTypeFlashCall: 'Вам позвонят — код в номере звонящего.',
+    'The code was sent to Telegram on your other device.',
+  authenticationCodeTypeSms: 'The code was sent by SMS.',
+  authenticationCodeTypeCall: 'You’ll get a call that reads out the code.',
+  authenticationCodeTypeFlashCall:
+    'You’ll get a call — the code is in the caller’s number.',
 };
 
 export function useTelegramState() {
@@ -44,7 +45,7 @@ export default function TelegramModal({ isVisible, onClose }) {
           <Body state={state} />
           {state.error && <Text style={styles.errorText}>{state.error}</Text>}
           <TouchableOpacity style={styles.closeModalButton} onPress={onClose}>
-            <Text style={styles.closeModalButtonText}>Закрыть</Text>
+            <Text style={styles.closeModalButtonText}>Close</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -57,9 +58,9 @@ function Body({ state }) {
     case 'unavailable':
       return (
         <Text style={styles.tgText}>
-          Telegram не настроен. Добавьте EXPO_PUBLIC_TG_API_ID и
-          EXPO_PUBLIC_TG_API_HASH в .env (my.telegram.org) и пересоберите
-          приложение. Работает только на Android.
+          Telegram isn’t set up. Add EXPO_PUBLIC_TG_API_ID and
+          EXPO_PUBLIC_TG_API_HASH to .env (my.telegram.org) and rebuild the app.
+          Android only.
         </Text>
       );
     case 'loading':
@@ -70,10 +71,10 @@ function Body({ state }) {
       return (
         <>
           <Text style={styles.tgText}>
-            Вы вошли как {Telegram.displayName(state.me) || '…'}
+            Signed in as {Telegram.displayName(state.me) || '…'}
           </Text>
           <TgButton
-            label="Выйти из Telegram"
+            label="Log out of Telegram"
             busy={state.busy}
             onPress={Telegram.logOut}
           />
@@ -83,11 +84,11 @@ function Body({ state }) {
       return (
         <Step
           key="phone"
-          hint="Войдите в свой аккаунт. JARVIS будет читать и отправлять сообщения от вашего имени."
+          hint="Sign in to your account. JARVIS will read and send messages on your behalf."
           placeholder="+998 90 123 45 67"
           keyboardType="phone-pad"
           autoComplete="tel"
-          label="Получить код"
+          label="Get code"
           busy={state.busy}
           onSubmit={Telegram.submitPhone}
         />
@@ -97,16 +98,16 @@ function Body({ state }) {
         <>
           <Step
             key="code"
-            hint={CODE_SOURCE[state.codeType] || 'Введите код подтверждения.'}
-            placeholder="Код"
+            hint={CODE_SOURCE[state.codeType] || 'Enter the confirmation code.'}
+            placeholder="Code"
             keyboardType="number-pad"
             autoComplete="one-time-code"
-            label="Войти"
+            label="Sign in"
             busy={state.busy}
             onSubmit={Telegram.submitCode}
           />
           <TouchableOpacity onPress={Telegram.resendCode} disabled={state.busy}>
-            <Text style={styles.tgLink}>Отправить код ещё раз</Text>
+            <Text style={styles.tgLink}>Resend code</Text>
           </TouchableOpacity>
         </>
       );
@@ -116,12 +117,12 @@ function Body({ state }) {
           key="password"
           hint={
             state.passwordHint
-              ? `Облачный пароль (подсказка: ${state.passwordHint})`
-              : 'Облачный пароль (двухэтапная проверка)'
+              ? `Cloud password (hint: ${state.passwordHint})`
+              : 'Cloud password (two-step verification)'
           }
-          placeholder="Пароль"
+          placeholder="Password"
           secureTextEntry
-          label="Войти"
+          label="Sign in"
           busy={state.busy}
           onSubmit={Telegram.submitPassword}
         />

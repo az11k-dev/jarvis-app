@@ -152,7 +152,7 @@ export const TTS_THREADS = 4;
 
 // `id` picks the model `piper-<id>`; `model` is the .onnx inside it.
 export const RUSSIAN_VOICES = [
-  { id: 'ruslan', model: 'ru_RU-ruslan-medium', label: 'Руслан — мужской' },
+  { id: 'ruslan', model: 'ru_RU-ruslan-medium', label: 'Ruslan — male' },
 ];
 
 export const ENGLISH_VOICES = [

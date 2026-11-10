@@ -1,6 +1,6 @@
 import * as Notifications from 'expo-notifications';
 
-const REMINDER_TITLE = 'J.A.R.V.I.S. напоминание';
+const REMINDER_TITLE = 'J.A.R.V.I.S. reminder';
 
 /** Schedules a reminder. Returns its id and the time it fires. */
 export async function scheduleReminder(message, seconds) {
@@ -8,7 +8,7 @@ export async function scheduleReminder(message, seconds) {
   const id = await Notifications.scheduleNotificationAsync({
     content: {
       title: REMINDER_TITLE,
-      body: `Сэр, ${message}`,
+      body: message,
       sound: 'default',
       priority: Notifications.AndroidNotificationPriority.HIGH,
       // A timeInterval trigger read back later has no start time, so keep

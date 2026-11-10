@@ -46,7 +46,7 @@ core works.
 
 On Android JARVIS keeps listening after you leave the app or turn the screen off: a
 `microphone` foreground service (`modules/jarvis-background`) shows an ongoing
-notification, and tapping **Выключить** there turns the mic off. Some vendors
+notification, and tapping **Turn off** there turns the mic off. Some vendors
 (Samsung, Xiaomi…) may still kill background apps; set JARVIS's battery usage to
 _Unrestricted_ if it stops listening after a while.
 

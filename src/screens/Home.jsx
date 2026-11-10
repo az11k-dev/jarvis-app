@@ -14,23 +14,23 @@ import { startTelegram } from '../services/telegram';
 import { COLORS, FONTS, styles } from '../styles/mainStyles';
 
 const STATUS_TEXT = {
-  off: ['Микрофон выключен', 'Коснитесь ядра, чтобы говорить'],
-  standby: ['Ожидание', 'Скажите «Джарвис» или коснитесь ядра'],
-  listening: ['Слушаю, сэр', 'Говорите — я пойму, когда вы закончите'],
-  thinking: ['Обработка', 'Коснитесь, чтобы отменить'],
-  speaking: ['Отвечаю', 'Коснитесь, чтобы перебить'],
+  off: ['Microphone off', 'Tap the core to talk'],
+  standby: ['Standby', 'Say “Jarvis” or tap the core'],
+  listening: ['Listening, sir', 'Go ahead — I’ll know when you’re done'],
+  thinking: ['Processing', 'Tap to cancel'],
+  speaking: ['Responding', 'Tap to interrupt'],
 };
 
 const modelName = (id) => {
-  if (id === 'stt') return 'распознавание речи';
-  if (id.startsWith('piper-en-')) return 'английский голос';
-  return 'русский голос';
+  if (id === 'stt') return 'speech recognition';
+  if (id.startsWith('piper-en-')) return 'English voice';
+  return 'Russian voice';
 };
 
 function downloadLine(speech) {
   if (!speech?.downloading) return null;
   const name = modelName(speech.downloading);
-  return `Загружаю ${name}… ${Math.round(speech.progress * 100)}%`;
+  return `Downloading ${name}… ${Math.round(speech.progress * 100)}%`;
 }
 
 // Android checks the wake word on the device, so voice wake-up waits for
@@ -65,11 +65,11 @@ export default function Home() {
   const [title, defaultSubtitle] = STATUS_TEXT[status] || STATUS_TEXT.standby;
   const subtitle =
     status === 'standby' && !voiceWakeReady(jarvis.speech)
-      ? 'Коснитесь ядра — «Джарвис» заработает после загрузки модели'
+      ? 'Tap the core — “Jarvis” will work once the model downloads'
       : defaultSubtitle;
   const shownTitle =
     (status === 'standby' || status === 'listening') && jarvis.userSpeaking
-      ? 'Слышу вас…'
+      ? 'Hearing you…'
       : status === 'thinking' && jarvis.activity
         ? jarvis.activity
         : title;
@@ -151,14 +151,14 @@ export default function Home() {
           {
             key: 'mic',
             icon: settings.micEnabled ? 'mic' : 'micOff',
-            label: settings.micEnabled ? 'МИКРОФОН' : 'ВЫКЛ',
+            label: settings.micEnabled ? 'MIC' : 'OFF',
             tone: settings.micEnabled ? 'active' : 'alert',
             onPress: () => engine.setMicEnabled(!settings.micEnabled),
           },
           {
             key: 'voice',
             icon: 'voice',
-            label: 'ГОЛОС',
+            label: 'VOICE',
             onPress: () => setIsVoicePickerVisible(true),
           },
           {
@@ -171,7 +171,7 @@ export default function Home() {
           {
             key: 'reset',
             icon: 'reset',
-            label: 'СБРОС',
+            label: 'RESET',
             onPress: () => engine.clearConversation(),
           },
         ]}

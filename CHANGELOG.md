@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `list_reminders` and `cancel_reminder` tools: ask JARVIS which reminders are set, cancel one or move it to another time
 - Vision: `analyze_image` tool — JARVIS opens an in-app scanner (`expo-camera`) that shoots by itself after focusing — back or selfie camera — or picks from the gallery, sends the photo to a vision model and reports what it sees, reads or translates text (`EXPO_PUBLIC_OPENAI_VISION_MODEL` overrides the model)
 - Telegram as the user's own account on Android (local module `modules/jarvis-telegram`, TDLib, `EXPO_PUBLIC_TG_API_ID`/`EXPO_PUBLIC_TG_API_HASH`): log in from the ✈️ Telegram window (phone, code, two-step password), with the session database encrypted by an Android Keystore key. By voice: list unread chats, read and summarize a chat, mark it read, search messages by word and sender, send and reply, compose a reply on request, delete your own last messages for everyone, and have new messages from watched chats, mentions and (optionally) private chats read out as they arrive. Messages are sent as soon as the user asks; deleting is read back and runs only when the user's next phrase confirms, enforced in code
-- Background listening on Android: a microphone foreground service (local module `modules/jarvis-background`) keeps the wake word working with the app in the background or the screen off, with a «Выключить» action in its notification
+- Background listening on Android: a microphone foreground service (local module `modules/jarvis-background`) keeps the wake word working with the app in the background or the screen off, with a "Turn off" action in its notification
 
 ### Fixed
 
@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- The interface is now English only: status lines, buttons, the log, the voice picker, the Telegram login window, error messages and notifications were partly in Russian. JARVIS still understands and answers in Russian or English
 - Privacy: in standby the wake word is checked on the device, and only phrases that start with it are sent to OpenAI — background speech (TV, calls, conversations) stays on the phone; a bare «Джарвис» is acknowledged without a cloud round-trip
 - Speech recognition now uses OpenAI `gpt-transcribe` (`EXPO_PUBLIC_OPENAI_TRANSCRIBE_MODEL` overrides it) for better accuracy; the on-device recognizer is the offline fallback when OpenAI is unreachable or takes longer than 8 s
 - Conversation mode: after an answer JARVIS keeps listening for 10 s (15 s if it asked a question) without the wake word; speaking keeps the conversation going, silence, a sign-off («отбой», «спасибо, всё») or opening another app returns it to standby

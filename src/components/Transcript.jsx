@@ -11,7 +11,7 @@ import * as Clipboard from 'expo-clipboard';
 import HudCorners from './hud/HudCorners';
 import { COLORS, FONTS } from '../styles/mainStyles';
 
-const LABELS = { user: 'ВЫ', jarvis: 'J.A.R.V.I.S.', error: 'СИСТЕМА' };
+const LABELS = { user: 'YOU', jarvis: 'J.A.R.V.I.S.', error: 'SYSTEM' };
 
 const pad = (n) => String(n).padStart(2, '0');
 const timeOf = (at) => {
@@ -26,7 +26,7 @@ export default function Transcript({ messages }) {
   const copy = (text) => {
     Clipboard.setStringAsync(text);
     if (Platform.OS === 'android') {
-      ToastAndroid.show('Скопировано', ToastAndroid.SHORT);
+      ToastAndroid.show('Copied', ToastAndroid.SHORT);
     }
   };
 
@@ -34,7 +34,7 @@ export default function Transcript({ messages }) {
     <View style={styles.wrap}>
       <View style={styles.sectionRow}>
         <View style={styles.sectionTick} />
-        <Text style={styles.sectionLabel}>ЖУРНАЛ</Text>
+        <Text style={styles.sectionLabel}>LOG</Text>
         <View style={styles.sectionLine} />
         <Text style={styles.sectionCount}>{pad(messages.length)}</Text>
       </View>
@@ -43,8 +43,10 @@ export default function Transcript({ messages }) {
         <View style={styles.empty}>
           <View style={styles.hintBox}>
             <HudCorners color={COLORS.cyanSoft} size={8} />
-            <Text style={styles.hintCaption}>ГОЛОСОВАЯ КОМАНДА</Text>
-            <Text style={styles.hint}>«Джарвис, какая погода в Ташкенте?»</Text>
+            <Text style={styles.hintCaption}>VOICE COMMAND</Text>
+            <Text style={styles.hint}>
+              “Jarvis, what’s the weather in Tashkent?”
+            </Text>
           </View>
         </View>
       ) : (

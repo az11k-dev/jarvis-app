@@ -22,11 +22,11 @@ export default function VoicePickerModal({
   const sizeNote = (modelId) =>
     installedModels.includes(modelId)
       ? ''
-      : ` · скачать ${SPEECH_MODELS[modelId].sizeMb} МБ`;
+      : ` · download ${SPEECH_MODELS[modelId].sizeMb} MB`;
 
   const sections = [
     {
-      title: 'Русский голос (на устройстве)',
+      title: 'Russian voice (on device)',
       data: RUSSIAN_VOICES.map((v) => ({
         key: `ru:${v.id}`,
         label: v.label + sizeNote(`piper-${v.id}`),
@@ -46,7 +46,7 @@ export default function VoicePickerModal({
       })),
     },
     {
-      title: 'Голоса устройства (системный синтез)',
+      title: 'Device voices (system TTS)',
       data: deviceVoices.map((v) => ({
         key: `device:${v.identifier}`,
         label: `${v.name} · ${v.language}${v.quality === 'Enhanced' ? ' · HD' : ''}`,
@@ -66,7 +66,7 @@ export default function VoicePickerModal({
       <View style={styles.modalOverlay}>
         <View style={styles.modalContent}>
           <HudCorners />
-          <Text style={styles.modalTitle}>Голос JARVIS</Text>
+          <Text style={styles.modalTitle}>JARVIS voice</Text>
           <View style={styles.modalTitleRule} />
           <SectionList
             sections={sections}
@@ -96,7 +96,7 @@ export default function VoicePickerModal({
             )}
           />
           <TouchableOpacity style={styles.closeModalButton} onPress={onClose}>
-            <Text style={styles.closeModalButtonText}>Готово</Text>
+            <Text style={styles.closeModalButtonText}>Done</Text>
           </TouchableOpacity>
         </View>
       </View>

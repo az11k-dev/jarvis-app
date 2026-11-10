@@ -50,15 +50,15 @@ export function subscribe(listener) {
 
 const UNSUPPORTED = {
   authorizationStateWaitEmailAddress:
-    'Telegram просит почту для входа. Войдите один раз в официальном приложении и повторите.',
+    'Telegram is asking for an email to sign in. Sign in once in the official app, then try again.',
   authorizationStateWaitEmailCode:
-    'Telegram просит код с почты. Войдите один раз в официальном приложении и повторите.',
+    'Telegram is asking for an email code. Sign in once in the official app, then try again.',
   authorizationStateWaitRegistration:
-    'На этот номер нет аккаунта Telegram. Сначала зарегистрируйтесь в официальном приложении.',
+    'There’s no Telegram account for this number. Sign up in the official app first.',
   authorizationStateWaitOtherDeviceConfirmation:
-    'Подтвердите вход на другом устройстве.',
+    'Confirm the sign-in on your other device.',
   authorizationStateWaitPremiumPurchase:
-    'Telegram требует Premium для входа с этого номера. Войдите в официальном приложении.',
+    'Telegram requires Premium to sign in with this number. Sign in in the official app.',
 };
 
 async function onAuthState(auth) {
@@ -121,13 +121,13 @@ export async function startTelegram() {
 }
 
 const ERRORS = [
-  [/PHONE_NUMBER_INVALID/, 'Неверный номер телефона.'],
-  [/PHONE_NUMBER_BANNED/, 'Этот номер заблокирован в Telegram.'],
-  [/PHONE_CODE_INVALID|PHONE_CODE_EMPTY/, 'Неверный код.'],
-  [/PHONE_CODE_EXPIRED/, 'Код устарел. Запросите новый.'],
-  [/PASSWORD_HASH_INVALID/, 'Неверный пароль.'],
-  [/retry after (\d+)/i, (m) => `Слишком много попыток. Подождите ${m[1]} с.`],
-  [/FLOOD_WAIT_(\d+)/, (m) => `Слишком много попыток. Подождите ${m[1]} с.`],
+  [/PHONE_NUMBER_INVALID/, 'Invalid phone number.'],
+  [/PHONE_NUMBER_BANNED/, 'This number is banned on Telegram.'],
+  [/PHONE_CODE_INVALID|PHONE_CODE_EMPTY/, 'Wrong code.'],
+  [/PHONE_CODE_EXPIRED/, 'The code has expired. Request a new one.'],
+  [/PASSWORD_HASH_INVALID/, 'Wrong password.'],
+  [/retry after (\d+)/i, (m) => `Too many attempts. Wait ${m[1]} s.`],
+  [/FLOOD_WAIT_(\d+)/, (m) => `Too many attempts. Wait ${m[1]} s.`],
 ];
 
 export function errorText(e) {

@@ -73,19 +73,19 @@ const isNoise = (text) =>
 
 // Status line shown under the core while a tool runs.
 const TOOL_ACTIVITY = {
-  web_search: 'Ищу в сети…',
-  analyze_image: 'Анализирую…',
-  tg_unread_chats: 'Проверяю Telegram…',
-  tg_find_chat: 'Ищу чат…',
-  tg_read_messages: 'Читаю сообщения…',
-  tg_mark_read: 'Отмечаю прочитанным…',
-  tg_search_messages: 'Ищу в сообщениях…',
-  tg_watch_chat: 'Настраиваю…',
-  tg_announcements: 'Настраиваю…',
-  tg_remember_chat: 'Запоминаю…',
-  tg_send_message: 'Отправляю…',
-  tg_delete_sent: 'Готовлю удаление…',
-  tg_confirm_delete: 'Удаляю…',
+  web_search: 'Searching the web…',
+  analyze_image: 'Analyzing…',
+  tg_unread_chats: 'Checking Telegram…',
+  tg_find_chat: 'Finding the chat…',
+  tg_read_messages: 'Reading messages…',
+  tg_mark_read: 'Marking as read…',
+  tg_search_messages: 'Searching messages…',
+  tg_watch_chat: 'Updating settings…',
+  tg_announcements: 'Updating settings…',
+  tg_remember_chat: 'Remembering…',
+  tg_send_message: 'Sending…',
+  tg_delete_sent: 'Preparing to delete…',
+  tg_confirm_delete: 'Deleting…',
 };
 
 let messageId = 0;
@@ -183,12 +183,12 @@ export class JarvisEngine {
       .catch(() => {});
 
     if (!OPENAI_API_KEY) {
-      this.set({ error: 'Не задан EXPO_PUBLIC_OPENAI_API_KEY в .env' });
+      this.set({ error: 'EXPO_PUBLIC_OPENAI_API_KEY is not set in .env' });
     }
 
     const permission = await requestRecordingPermissionsAsync();
     if (!permission.granted) {
-      this.set({ error: 'Нет доступа к микрофону', status: 'off' });
+      this.set({ error: 'No microphone permission', status: 'off' });
       return;
     }
     await setAudioModeAsync({
@@ -224,7 +224,7 @@ export class JarvisEngine {
     } catch (e) {
       console.warn('Mic start failed:', e);
       this.micFailed = true;
-      this.set({ status: 'off', error: 'Не удалось включить микрофон' });
+      this.set({ status: 'off', error: 'Couldn’t turn on the microphone' });
     }
   }
 
@@ -244,8 +244,8 @@ export class JarvisEngine {
     try {
       await Background.start({
         title: 'J.A.R.V.I.S.',
-        text: 'Слушаю. Скажите «Джарвис», сэр.',
-        stopLabel: 'Выключить',
+        text: 'Listening. Say “Jarvis”, sir.',
+        stopLabel: 'Turn off',
       });
     } catch (e) {
       // Usually "app not in the foreground"; retried in setAppActive(true).
@@ -485,13 +485,14 @@ export class JarvisEngine {
       }
       if (text === undefined) {
         // Background chatter in standby on iOS shouldn't flash "thinking".
-        if (engaged) this.set({ status: 'thinking', activity: 'Распознаю…' });
+        if (engaged)
+          this.set({ status: 'thinking', activity: 'Transcribing…' });
         const wav = encodeWav(utterance.chunks, utterance.sampleRate);
         text = await this.transcribe(wav, signal);
       }
       if (turn !== this.turn) return;
 
-      if (this.snapshot.error === 'Нет связи с OpenAI')
+      if (this.snapshot.error === 'Can’t reach OpenAI')
         this.set({ error: null });
 
       if (isNoise(text)) {
@@ -530,7 +531,10 @@ export class JarvisEngine {
       this.busy = false;
       if (e instanceof SpeechNotReadyError) {
         if (wasListening) {
-          this.addMessage('error', 'Модель распознавания речи ещё загружается');
+          this.addMessage(
+            'error',
+            'The speech recognition model is still downloading'
+          );
           this.enterStandby();
         }
         return;
@@ -541,8 +545,8 @@ export class JarvisEngine {
         this.set({
           error:
             e instanceof MissingApiKeyError
-              ? 'Не задан EXPO_PUBLIC_OPENAI_API_KEY в .env'
-              : 'Нет связи с OpenAI',
+              ? 'EXPO_PUBLIC_OPENAI_API_KEY is not set in .env'
+              : 'Can’t reach OpenAI',
         });
         return;
       }
@@ -635,13 +639,13 @@ export class JarvisEngine {
 
   async converse(text, turn, signal) {
     this.addMessage('user', text);
-    this.set({ status: 'thinking', activity: 'Думаю…' });
+    this.set({ status: 'thinking', activity: 'Thinking…' });
 
     const reply = await this.brain.respond(text, {
       signal,
       onToolStart: (name) =>
         this.set({
-          activity: TOOL_ACTIVITY[name] || 'Выполняю…',
+          activity: TOOL_ACTIVITY[name] || 'Working…',
         }),
     });
     if (turn !== this.turn) return;

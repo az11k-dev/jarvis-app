@@ -23,7 +23,7 @@ export function useJarvis() {
   // background through a foreground service, see modules/jarvis-background).
   useKeepAwake();
 
-  // "Выключить" tapped in the listening notification.
+  // "Turn off" tapped in the listening notification.
   useEffect(
     () =>
       Background.addStopRequestedListener(() => engine.setMicEnabled(false)),

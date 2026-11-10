@@ -79,6 +79,7 @@ const TOOL_ACTIVITY = {
   tg_find_chat: 'Ищу чат…',
   tg_read_messages: 'Читаю сообщения…',
   tg_mark_read: 'Отмечаю прочитанным…',
+  tg_search_messages: 'Ищу в сообщениях…',
   tg_remember_chat: 'Запоминаю…',
   tg_draft_message: 'Готовлю сообщение…',
   tg_send_draft: 'Отправляю…',

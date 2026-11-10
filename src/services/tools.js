@@ -13,6 +13,7 @@ import {
   markRead,
   readMessages,
   rememberChatName,
+  searchMessages,
   unreadChats,
 } from './telegramChats';
 import {
@@ -97,6 +98,32 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['chat_id', 'mode', 'limit']
+  ),
+  fn(
+    'tg_search_messages',
+    'Search Telegram messages by words, in one chat or in all chats, optionally only from one person. Returns matches newest first with sender, time and text.',
+    {
+      chat_id: {
+        type: 'integer',
+        description:
+          'chat_id to search in (from tg_unread_chats or tg_find_chat), or 0 for all chats.',
+      },
+      query: {
+        type: 'string',
+        description:
+          "Words to look for, as a stem without case endings (макет, not макета). Empty with a chat and a sender lists that person's latest messages.",
+      },
+      from: {
+        type: 'string',
+        description:
+          'Only messages from this person (name as said, or "me" for the user), or empty for anyone.',
+      },
+      limit: {
+        type: 'integer',
+        description: 'How many results at most (default 10, max 20).',
+      },
+    },
+    ['chat_id', 'query', 'from', 'limit']
   ),
   fn(
     'tg_mark_read',
@@ -345,6 +372,14 @@ export async function runTool(name, args, { signal, turn } = {}) {
       return {
         output: await readMessages(args.chat_id, {
           mode: args.mode,
+          limit: args.limit,
+        }),
+      };
+
+    case 'tg_search_messages':
+      return {
+        output: await searchMessages(args.chat_id, args.query, {
+          from: args.from,
           limit: args.limit,
         }),
       };

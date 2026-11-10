@@ -529,3 +529,82 @@ export async function myRecentMessages(chatId, count) {
     .slice(0, count)
     .map((m) => ({ id: m.id, text: clip(contentText(m.content), 200) }));
 }
+
+/**
+ * Messages matching `query`, newest first: in one chat, or in all chats
+ * when chatId is 0. `from` keeps messages whose sender's name matches it
+ * («Дина», "Alisher"; "me" for the user's own); with an empty query that
+ * is simply the latest messages from that person.
+ */
+export async function searchMessages(chatId, query, { from, limit } = {}) {
+  await requireReady();
+  const q = String(query || '').trim();
+  const sender = String(from || '').trim();
+  const max = Math.min(
+    Math.max(1, Number(limit) || TELEGRAM_READ.defaultSearchResults),
+    TELEGRAM_READ.maxSearchResults
+  );
+  const inChat = Number(chatId) || 0;
+  if (!q && (!sender || !inChat)) {
+    return {
+      error:
+        'Give words to search for (or a chat plus a sender to list their latest messages).',
+    };
+  }
+
+  let found;
+  if (inChat) {
+    found = await send({
+      '@type': 'searchChatMessages',
+      chat_id: inChat,
+      query: q,
+      from_message_id: 0,
+      offset: 0,
+      limit: 100,
+    });
+  } else {
+    // A person writes in private chats and groups; channels, which post
+    // the same words all day, would crowd their messages out of the batch.
+    const types = sender
+      ? [
+          'searchMessagesChatTypeFilterPrivate',
+          'searchMessagesChatTypeFilterGroup',
+        ]
+      : [null];
+    const pages = await Promise.all(
+      types.map((type) =>
+        send({
+          '@type': 'searchMessages',
+          query: q,
+          offset: '',
+          limit: 100,
+          chat_type_filter: type ? { '@type': type } : undefined,
+        })
+      )
+    );
+    found = {
+      messages: pages
+        .flatMap((p) => p.messages || [])
+        .sort((a, b) => b.date - a.date),
+    };
+  }
+
+  const isMe = /^(me|я|мои?|мне)$/i.test(sender);
+  const results = [];
+  for (const m of found.messages || []) {
+    if (results.length >= max) break;
+    const name = await senderName(m.sender_id, myId);
+    if (isMe ? !m.is_outgoing : sender && nameScore(sender, name) === 0) {
+      continue;
+    }
+    results.push({
+      chat: inChat ? undefined : titleOf(await getChat(m.chat_id)),
+      chat_id: inChat ? undefined : m.chat_id,
+      id: m.id,
+      from: name,
+      time: timeLabel(m.date),
+      text: clip(contentText(m.content), TELEGRAM_READ.maxMessageChars),
+    });
+  }
+  return { found: results.length, newest_first: true, messages: results };
+}

@@ -188,6 +188,8 @@ export const TELEGRAM_READ = {
   defaultMessages: 20,
   maxMessages: 50,
   maxMessageChars: 800, // longer messages are cut
+  defaultSearchResults: 10,
+  maxSearchResults: 20,
 };
 
 // Sending Telegram messages (always drafted, read back and confirmed).

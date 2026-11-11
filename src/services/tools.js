@@ -18,6 +18,13 @@ import {
 } from './telegramChats';
 import { controlAnnouncements, watchChat } from './telegramAnnounce';
 import { confirmDelete, prepareDelete, sendMessage } from './telegramSend';
+import {
+  listRestaurants,
+  openTezkor,
+  searchFood,
+  setAddress,
+  vendorMenu,
+} from './tezkor';
 
 const fn = (name, description, properties = {}, required = []) => ({
   type: 'function',
@@ -227,6 +234,72 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['alias', 'chat_id']
+  ),
+  fn(
+    'tezkor_search_food',
+    'Search Uzum Tezkor (food and grocery delivery in Uzbekistan) for a dish, cuisine, product or restaurant near the delivery address. Returns restaurants (open ones first) with rating, delivery time and price, minimum order, and the matching dishes with prices in sum.',
+    {
+      query: {
+        type: 'string',
+        description:
+          'What to look for, as a short dish, cuisine or place name in Russian (плов, бургер, пицца пепперони, Evos), since menus are in Russian.',
+      },
+    },
+    ['query']
+  ),
+  fn(
+    'tezkor_restaurants',
+    'List Uzum Tezkor restaurants (or shops) that deliver to the delivery address, like its home screen: which are open now, optionally only one kitchen. Use for «что сейчас открыто?», «какие рестораны работают?», «где поесть?», or when the user names a kitchen rather than a dish.',
+    {
+      kitchen: {
+        type: 'string',
+        description:
+          'Kitchen in Russian as Tezkor names them (Бургеры, Пицца, Лаваш, Суши, Курочка, Шашлыки, Плов, Milliy Taom for Uzbek food, Завтраки, Десерты, Кофе), or empty for all.',
+      },
+      type: {
+        type: 'string',
+        enum: ['restaurant', 'shop'],
+        description: 'restaurant (default) or shop (groceries, pharmacies).',
+      },
+      open_only: {
+        type: 'boolean',
+        description:
+          'true (default) to list only places open now; false to also list closed ones with their opening time.',
+      },
+    },
+    ['kitchen', 'type', 'open_only']
+  ),
+  fn(
+    'tezkor_menu',
+    "Get one Uzum Tezkor restaurant's menu: dish names, prices, weight and categories, optionally only dishes matching some words.",
+    {
+      vendor_id: {
+        type: 'string',
+        description: 'vendor_id from tezkor_search_food.',
+      },
+      query: {
+        type: 'string',
+        description:
+          'Words to filter dishes by (in Russian), or empty for the whole menu.',
+      },
+    },
+    ['vendor_id', 'query']
+  ),
+  fn(
+    'tezkor_set_address',
+    'Set the delivery address used for Uzum Tezkor searches. Saved on the phone for next time.',
+    {
+      address: {
+        type: 'string',
+        description:
+          'Street and house number with the city, e.g. «Ташкент, улица Амира Темура, 1».',
+      },
+    },
+    ['address']
+  ),
+  fn(
+    'open_tezkor',
+    'Open Uzum Tezkor in the Uzum app so the user can place the order themselves.'
   ),
   fn(
     'open_youtube',
@@ -441,6 +514,35 @@ export async function runTool(name, args, { signal, turn } = {}) {
     case 'tg_remember_chat':
       return {
         output: await rememberChatName(String(args.alias || ''), args.chat_id),
+      };
+
+    case 'tezkor_search_food':
+      return { output: await searchFood(args.query, { signal }) };
+
+    case 'tezkor_restaurants':
+      return {
+        output: await listRestaurants(
+          {
+            kitchen: String(args.kitchen || ''),
+            type: args.type,
+            openOnly: args.open_only !== false && args.open_only !== 'false',
+          },
+          { signal }
+        ),
+      };
+
+    case 'tezkor_menu':
+      return {
+        output: await vendorMenu(args.vendor_id, args.query, { signal }),
+      };
+
+    case 'tezkor_set_address':
+      return { output: await setAddress(args.address, { signal }) };
+
+    case 'open_tezkor':
+      return {
+        output: { status: 'opening_after_reply' },
+        after: () => openTezkor(),
       };
 
     case 'end_conversation':

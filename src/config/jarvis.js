@@ -200,6 +200,21 @@ export const TELEGRAM_SEND = {
   maxDelete: 5, // most of the user's own messages deleted at once
 };
 
+// ── Uzum Tezkor food delivery (unofficial API of uzumtezkor.uz) ──
+// clientId is the public id the uzumtezkor.uz web app sends with every
+// login request; it is not a secret.
+export const TEZKOR = {
+  baseUrl: 'https://uzumtezkor.uz',
+  clientId: '297ce037-13c6-4cb8-9517-1382fb59a75d',
+  language: 'ru', // dish and restaurant names come back in this language
+  timeoutMs: 15000,
+  maxVendors: 6, // restaurants returned per search
+  maxDishes: 4, // matching dishes listed per restaurant
+  maxMenuItems: 25, // dishes returned from one restaurant's menu
+  maxRestaurants: 15, // restaurants returned when listing what is open
+  maxDescriptionChars: 100,
+};
+
 // Speaking new Telegram messages (watched chats, mentions, private chats).
 export const TELEGRAM_ANNOUNCE = {
   batchMs: 4000, // wait this long for more messages before speaking

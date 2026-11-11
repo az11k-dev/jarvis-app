@@ -390,11 +390,15 @@ export async function vendorMenu(vendorId, query, { signal } = {}) {
   };
 }
 
-/** Opens Uzum Tezkor in the Uzum app (or the website without the app). */
-export async function openTezkor() {
-  try {
-    await Linking.openURL('uzum://tezkor');
-  } catch {
-    await Linking.openURL(TEZKOR.baseUrl);
-  }
+/**
+ * Opens the Uzum Tezkor website so the user can log in and place the order
+ * there. JARVIS can't log in or pay itself (Uzum's login is gated to their
+ * own apps, and card details are the user's to enter), so ordering happens
+ * on the real site, where the user stays logged in. Opens a specific
+ * restaurant when `vendorId` is given, otherwise the home screen.
+ */
+export async function openTezkor({ vendorId } = {}) {
+  const id = String(vendorId || '').trim();
+  const path = id ? `/restaurants/${encodeURIComponent(id)}` : '';
+  await Linking.openURL(`${TEZKOR.baseUrl}/${TEZKOR.language}${path}`);
 }

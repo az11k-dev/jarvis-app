@@ -299,7 +299,15 @@ export const TOOL_DEFINITIONS = [
   ),
   fn(
     'open_tezkor',
-    'Open Uzum Tezkor in the Uzum app so the user can place the order themselves.'
+    'Open the Uzum Tezkor website so the user can log in and place the order themselves. Opens the restaurant JARVIS found when vendor_id is given. Use once the user decides what to order; JARVIS cannot log in or pay itself.',
+    {
+      vendor_id: {
+        type: 'string',
+        description:
+          'vendor_id of the restaurant to open from tezkor_search_food or tezkor_restaurants, or empty for the Tezkor home screen.',
+      },
+    },
+    ['vendor_id']
   ),
   fn(
     'open_youtube',
@@ -542,7 +550,7 @@ export async function runTool(name, args, { signal, turn } = {}) {
     case 'open_tezkor':
       return {
         output: { status: 'opening_after_reply' },
-        after: () => openTezkor(),
+        after: () => openTezkor({ vendorId: args.vendor_id }),
       };
 
     case 'end_conversation':

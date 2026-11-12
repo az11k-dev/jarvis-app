@@ -19,6 +19,7 @@ import {
 import { controlAnnouncements, watchChat } from './telegramAnnounce';
 import { confirmDelete, prepareDelete, sendMessage } from './telegramSend';
 import {
+  deliveryAddress,
   listRestaurants,
   openTezkor,
   searchFood,
@@ -237,7 +238,7 @@ export const TOOL_DEFINITIONS = [
   ),
   fn(
     'tezkor_search_food',
-    'Search Uzum Tezkor (food and grocery delivery in Uzbekistan) for a dish, cuisine, product or restaurant near the delivery address. Returns restaurants (open ones first) with rating, delivery time and price, minimum order, and the matching dishes with prices in sum.',
+    'Search Uzum Tezkor (food and grocery delivery in Uzbekistan) for a dish, cuisine, product or restaurant near the delivery address. Returns restaurants (open ones first; a place whose name matches has name_matches_query) with rating, delivery time and price, minimum order, and the matching dishes with prices in sum.',
     {
       query: {
         type: 'string',
@@ -249,12 +250,12 @@ export const TOOL_DEFINITIONS = [
   ),
   fn(
     'tezkor_restaurants',
-    'List Uzum Tezkor restaurants (or shops) that deliver to the delivery address, like its home screen: which are open now, optionally only one kitchen. Use for «что сейчас открыто?», «какие рестораны работают?», «где поесть?», or when the user names a kitchen rather than a dish.',
+    'List Uzum Tezkor restaurants (or shops) that deliver to the delivery address, like its home screen: which are open now and how many there are, optionally only one kitchen or one place by name. Use for «что сейчас открыто?», «какие рестораны работают?», «где поесть?», or when the user names a kitchen rather than a dish.',
     {
       kitchen: {
         type: 'string',
         description:
-          'Kitchen in Russian as Tezkor names them (Бургеры, Пицца, Лаваш, Суши, Курочка, Шашлыки, Плов, Milliy Taom for Uzbek food, Завтраки, Десерты, Кофе), or empty for all.',
+          'Kitchen in Russian as Tezkor names them (Бургеры, Пицца, Лаваш, Суши, Курочка, Шашлыки, Плов, Milliy Taom for Uzbek food, Европа, Азия, Турецкая, Обеды, Завтраки, Десерты, Кофе), a place name (KFC), or empty for all.',
       },
       type: {
         type: 'string',
@@ -264,30 +265,30 @@ export const TOOL_DEFINITIONS = [
       open_only: {
         type: 'boolean',
         description:
-          'true (default) to list only places open now; false to also list closed ones with their opening time.',
+          'true (default) to list only places open now; false to also get the closed ones with their opening time (in closed).',
       },
     },
     ['kitchen', 'type', 'open_only']
   ),
   fn(
     'tezkor_menu',
-    "Get one Uzum Tezkor restaurant's menu: dish names, prices, weight and categories, optionally only dishes matching some words.",
+    "Get one Uzum Tezkor restaurant's menu (dish names, prices, weight, categories, a few dishes from each category), or only what matches some words. Also searches inside one shop; a shop needs query, without it you get its sections.",
     {
       vendor_id: {
         type: 'string',
-        description: 'vendor_id from tezkor_search_food.',
+        description: 'vendor_id from tezkor_search_food or tezkor_restaurants.',
       },
       query: {
         type: 'string',
         description:
-          'Words to filter dishes by (in Russian), or empty for the whole menu.',
+          'A dish, product or category to look for (in Russian: лаваш, напитки, молоко), or empty for an overview of the menu.',
       },
     },
     ['vendor_id', 'query']
   ),
   fn(
     'tezkor_set_address',
-    'Set the delivery address used for Uzum Tezkor searches. Saved on the phone for next time.',
+    'Set the delivery address used for Uzum Tezkor searches. Saved on the phone for next time. Fails, saving nothing, when Tezkor does not deliver there.',
     {
       address: {
         type: 'string',
@@ -299,15 +300,20 @@ export const TOOL_DEFINITIONS = [
   ),
   fn(
     'open_tezkor',
-    'Open the Uzum Tezkor website so the user can log in and place the order themselves. Opens the restaurant JARVIS found when vendor_id is given. Use once the user decides what to order; JARVIS cannot log in or pay itself.',
+    'Open the Uzum Tezkor website so the user can place the order themselves: the restaurant when vendor_id is given, and straight on the dish with its add-to-cart button when product_id is given too. Use once the user decides what to order; JARVIS cannot log in or pay itself. Returns delivery_address: the website must have the same address chosen, or it shows the restaurant as unavailable.',
     {
       vendor_id: {
         type: 'string',
         description:
-          'vendor_id of the restaurant to open from tezkor_search_food or tezkor_restaurants, or empty for the Tezkor home screen.',
+          'vendor_id of the restaurant to open from tezkor_search_food, tezkor_restaurants or tezkor_menu, or empty for the Tezkor home screen.',
+      },
+      product_id: {
+        type: 'string',
+        description:
+          'product_id of the dish the user chose, from the same restaurant, or empty to open the restaurant menu.',
       },
     },
-    ['vendor_id']
+    ['vendor_id', 'product_id']
   ),
   fn(
     'open_youtube',
@@ -549,8 +555,15 @@ export async function runTool(name, args, { signal, turn } = {}) {
 
     case 'open_tezkor':
       return {
-        output: { status: 'opening_after_reply' },
-        after: () => openTezkor({ vendorId: args.vendor_id }),
+        output: {
+          status: 'opening_after_reply',
+          delivery_address: await deliveryAddress(),
+        },
+        after: () =>
+          openTezkor({
+            vendorId: args.vendor_id,
+            productId: args.product_id,
+          }),
       };
 
     case 'end_conversation':

@@ -212,6 +212,8 @@ export const TEZKOR = {
   maxDishes: 4, // matching dishes listed per restaurant
   maxMenuItems: 25, // dishes returned from one restaurant's menu
   maxRestaurants: 15, // restaurants returned when listing what is open
+  homeLimit: 100, // places fetched for «что открыто?» (about 8 KB each)
+  listLimit: 200, // the most Tezkor returns per request
   maxDescriptionChars: 100,
 };
 

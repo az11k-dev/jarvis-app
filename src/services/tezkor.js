@@ -2,6 +2,14 @@ import { Linking } from 'react-native';
 import { File, Paths } from 'expo-file-system';
 import { TEZKOR } from '../config/jarvis';
 import { withTimeout } from '../utils/timeout';
+import {
+  findKitchenIds,
+  pickAddress,
+  pickMenu,
+  rankSearch,
+  vendorSummary,
+  vendorsNamed,
+} from './tezkorFormat';
 
 // Uzum Tezkor has no public API. This talks to the same JSON API the
 // uzumtezkor.uz web app uses. Search and menus work with a guest token;
@@ -25,12 +33,22 @@ async function loadSession() {
   return session;
 }
 
-async function requestGuestToken(signal) {
+let tokenRequest = null; // one request even when two tools ask at once
+
+function requestGuestToken(signal) {
+  tokenRequest ||= fetchGuestToken(signal).finally(() => {
+    tokenRequest = null;
+  });
+  return tokenRequest;
+}
+
+async function fetchGuestToken(signal) {
   const res = await fetchJson(
     '/api/v1/auth/guest',
     { params: { client_id: TEZKOR.clientId, realm: 'user' } },
     { signal, auth: false }
   );
+  if (!res?.access_token) throw unexpected();
   session = {
     accessToken: res.access_token,
     // Renew a minute early so a token never expires mid-request.
@@ -116,6 +134,15 @@ async function fetchJson(path, { params, method = 'GET', body } = {}, opts) {
   return data;
 }
 
+// A changed API must read as an error, never as "nothing found".
+const unexpected = () =>
+  new TezkorError('Uzum Tezkor answered in an unexpected format.');
+
+function list(value) {
+  if (!Array.isArray(value)) throw unexpected();
+  return value;
+}
+
 // ── delivery address ──────────────────────────────────────────────────────
 
 const addressFile = () => new File(Paths.document, 'tezkor-address.json');
@@ -132,32 +159,45 @@ async function loadAddress() {
   return address;
 }
 
-/** Finds `query` on the map and saves it as the delivery address. */
+/**
+ * Finds `query` on the map and saves it as the delivery address. Places
+ * Tezkor does not deliver to are not saved.
+ */
 export async function setAddress(query, { signal } = {}) {
   const text = String(query || '').trim();
   if (!text) return { error: 'Say the address.' };
-  const res = await fetchJson(
-    '/api/v1/geo/addresses',
-    { params: { query: text, limit: 1 } },
-    { signal }
-  );
-  const found = res?.data?.[0];
-  if (!found?.lat || !found?.long) {
-    return { error: 'Address not found.', query: text };
+  let res;
+  try {
+    res = await fetchJson(
+      '/api/v1/geo/addresses',
+      { params: { query: text, limit: 5 } },
+      { signal }
+    );
+  } catch (e) {
+    // The geocoder answers an unknown place with an error, not an empty list.
+    if (e instanceof TezkorError && /geocode|address/i.test(e.message)) {
+      return { error: 'Address not found.', query: text };
+    }
+    throw e;
   }
-  address = {
-    title: found.details?.name || found.title,
-    full_title: found.title,
-    lat: String(found.lat),
-    long: String(found.long),
-    accuracy: found.accuracy,
-  };
+  const { chosen, others, outOfZone } = pickAddress(res?.data);
+  if (!chosen) {
+    return outOfZone
+      ? {
+          error: 'Uzum Tezkor does not deliver to this address. Not saved.',
+          found: outOfZone,
+        }
+      : { error: 'Address not found.', query: text };
+  }
+  address = chosen;
   await addressFile().write(JSON.stringify(address));
   return {
     status: 'saved',
     address: address.full_title,
     // "street" means the house number was not found exactly.
-    exact: found.accuracy === 'house' || found.accuracy === 'precise',
+    exact: chosen.accuracy === 'house' || chosen.accuracy === 'precise',
+    // Other places with this name; the user may have meant one of them.
+    ...(others.length ? { other_matches: others } : {}),
   };
 }
 
@@ -169,86 +209,6 @@ async function requireAddress() {
     );
   }
   return a;
-}
-
-// ── formatting ────────────────────────────────────────────────────────────
-
-const sum = (price) =>
-  price && typeof price.value === 'number'
-    ? Math.round(price.value / 100)
-    : null;
-
-const normalize = (s) =>
-  String(s || '')
-    .toLowerCase()
-    .replace(/ё/g, 'е');
-
-// Word stems, so «плова» still finds «Плов» and «бургеры» finds «Бургер».
-function stems(query) {
-  return normalize(query)
-    .split(/[^a-zа-яўқғҳ0-9]+/)
-    .filter((w) => w.length >= 3)
-    .map((w) => (w.length > 4 ? w.slice(0, Math.max(3, w.length - 2)) : w));
-}
-
-const matches = (text, keys) =>
-  keys.length > 0 && keys.some((k) => normalize(text).includes(k));
-
-const shorten = (s, n) => {
-  const t = String(s || '').trim();
-  return t.length > n ? `${t.slice(0, n - 1)}…` : t;
-};
-
-// Vendor hours come as UTC ("07:30Z"); show them in the vendor's time zone.
-function localTime(utc, offsetSec) {
-  const m = /^(\d{1,2}):(\d{2})/.exec(String(utc || ''));
-  if (!m) return null;
-  const minutes =
-    (((Number(m[1]) * 60 + Number(m[2]) + Math.round((offsetSec || 0) / 60)) %
-      1440) +
-      1440) %
-    1440;
-  const hh = String(Math.floor(minutes / 60)).padStart(2, '0');
-  const mm = String(minutes % 60).padStart(2, '0');
-  return `${hh}:${mm}`;
-}
-
-function dish(p) {
-  return {
-    product_id: p.id,
-    name: p.name,
-    price_sum: sum(p.price),
-    ...(p.weight
-      ? { weight: `${p.weight} ${p.unit === 'pcs' ? 'g' : p.unit}` }
-      : {}),
-    ...(p.description
-      ? { description: shorten(p.description, TEZKOR.maxDescriptionChars) }
-      : {}),
-  };
-}
-
-function vendorSummary(v) {
-  const info = v.info || {};
-  const offer = v.offer || {};
-  const open = v.status === 'active';
-  return {
-    vendor_id: info.id,
-    name: info.vendorName || info.name,
-    type: info.category === 'rte' ? 'restaurant' : 'shop',
-    open,
-    ...(open
-      ? {}
-      : { opens_at: localTime(v.schedule?.startTime, info.timeZoneOffset) }),
-    rating: info.rating?.grade || null,
-    distance_m: Number(info.distanceToClient) || null,
-    delivery_minutes:
-      offer.minDeliveryTime && offer.maxDeliveryTime
-        ? `${offer.minDeliveryTime}-${offer.maxDeliveryTime}`
-        : null,
-    delivery_price_sum: sum(v.receiving?.delivery?.price),
-    min_order_sum: sum({ value: offer.minOrderAmount }),
-    kitchens: v.kitchens || [],
-  };
 }
 
 // ── search and menus ──────────────────────────────────────────────────────
@@ -263,34 +223,9 @@ export async function searchFood(query, { signal } = {}) {
     { params: { pattern: text, lat: a.lat, long: a.long } },
     { signal }
   );
-  const found = (res?.result || [])
+  const found = list(res?.result)
     .filter((r) => r.type === 'searchResult')
     .flatMap((r) => r.vendors || []);
-  const keys = stems(text);
-  const vendors = found
-    .map((item, rank) => {
-      const products = item.products || [];
-      const hits = products.filter((p) => matches(p.name, keys));
-      return {
-        rank,
-        ...vendorSummary(item.vendor || {}),
-        dishes: (hits.length ? hits : products.slice(0, 2))
-          .slice(0, TEZKOR.maxDishes)
-          .map(dish),
-        dishes_match_query: hits.length > 0,
-      };
-    })
-    // Open places first, then those with a matching dish, otherwise keep
-    // Tezkor's own ranking.
-    .sort(
-      (x, y) =>
-        Number(y.open) - Number(x.open) ||
-        Number(y.dishes_match_query) - Number(x.dishes_match_query) ||
-        x.rank - y.rank
-    )
-    .slice(0, TEZKOR.maxVendors)
-    .map(({ rank, ...v }) => v);
-
   return {
     delivery_address: a.title,
     query: text,
@@ -300,105 +235,222 @@ export async function searchFood(query, { signal } = {}) {
     places_with_query_open_now: found.filter(
       (i) => i.vendor?.status === 'active'
     ).length,
-    vendors,
+    vendors: rankSearch(found, text, TEZKOR),
   };
+}
+
+const kitchenFilters = new Map(); // category → Tezkor's kitchen filters
+
+async function fetchVendors(a, category, params, signal) {
+  const res = await fetchJson(
+    '/api/v1/vendors',
+    {
+      params: { lat: a.lat, long: a.long, category, offset: 0, ...params },
+    },
+    { signal }
+  );
+  list(res?.vendors);
+  if (res.filters?.kitchens) kitchenFilters.set(category, res.filters.kitchens);
+  return res;
 }
 
 /**
  * Restaurants (or shops) delivering to the address, as on the Tezkor home
- * screen, optionally only one kitchen («Бургеры», «Milliy Taom»).
+ * screen, optionally only one kitchen («Бургеры», «Milliy Taom») or place
+ * name. Tezkor returns at most `listLimit` places per request and has no
+ * working paging, so a kitchen is filtered on their side and the totals
+ * come from their count.
  */
 export async function listRestaurants(
   { kitchen = '', type = 'restaurant', openOnly = true } = {},
   { signal } = {}
 ) {
   const a = await requireAddress();
-  const res = await fetchJson(
-    '/api/v1/vendors',
-    {
-      params: {
-        lat: a.lat,
-        long: a.long,
-        category: type === 'shop' ? 'grocery' : 'rte',
-        limit: 200,
-        offset: 0,
-      },
-    },
-    { signal }
-  );
-  const all = (res?.vendors || []).map((v) => vendorSummary(v.vendor || v));
-  const keys = stems(kitchen);
-  const inKitchen = keys.length
-    ? all.filter((v) => matches(`${v.kitchens.join(' ')} ${v.name}`, keys))
-    : all;
-  const open = inKitchen.filter((v) => v.open);
-  const listed = openOnly ? open : inKitchen;
-  // Closed ones are listed by how soon they open.
-  const sorted = openOnly
-    ? listed
-    : [...listed].sort(
-        (x, y) =>
-          Number(y.open) - Number(x.open) ||
-          String(x.opens_at || '99').localeCompare(String(y.opens_at || '99'))
+  const category = type === 'shop' ? 'grocery' : 'rte';
+  const wanted = String(kitchen || '').trim();
+
+  let res;
+  let raw;
+  let total;
+  if (wanted) {
+    if (!kitchenFilters.has(category)) {
+      await fetchVendors(a, category, { limit: 1 }, signal);
+    }
+    const ids = findKitchenIds(wanted, kitchenFilters.get(category));
+    if (ids.length) {
+      res = await fetchVendors(
+        a,
+        category,
+        { limit: TEZKOR.listLimit, kitchenIDs: ids.join(',') },
+        signal
       );
+      raw = res.vendors;
+      total = Number(res.total) || raw.length;
+    } else {
+      // Not a kitchen: a place name («KFC»), looked up among the nearest.
+      res = await fetchVendors(
+        a,
+        category,
+        { limit: TEZKOR.listLimit },
+        signal
+      );
+      raw = vendorsNamed(
+        res.vendors.map((v) => v.vendor || v),
+        wanted
+      );
+      total = raw.length;
+    }
+  } else {
+    res = await fetchVendors(a, category, { limit: TEZKOR.homeLimit }, signal);
+    raw = res.vendors;
+    total = Number(res.total) || raw.length;
+  }
+
+  const all = raw.map((v) => vendorSummary(v.vendor || v));
+  const open = all.filter((v) => v.open);
+  // Tezkor lists closed places last, so a page of only open ones means
+  // there are more open ones than we received.
+  const complete = all.length >= total || open.length < all.length;
+  // Closed ones are listed by how soon they open.
+  const soonest = (x, y) =>
+    String(x.opens_day || '').localeCompare(String(y.opens_day || '')) ||
+    String(x.opens_at || '99').localeCompare(String(y.opens_at || '99'));
+  const opening = (limit) =>
+    all
+      .filter((v) => !v.open && v.opens_at)
+      .sort(soonest)
+      .slice(0, limit)
+      .map((v) => ({
+        name: v.name,
+        opens_at: v.opens_at,
+        opens_day: v.opens_day,
+      }));
   return {
     delivery_address: a.title,
-    ...(kitchen ? { kitchen } : {}),
-    total: inKitchen.length,
-    open_now: open.length,
-    ...(openOnly && !open.length
-      ? {
-          next_to_open: inKitchen
-            .filter((v) => v.opens_at)
-            .sort((x, y) => x.opens_at.localeCompare(y.opens_at))
-            .slice(0, 3)
-            .map((v) => ({ name: v.name, opens_at: v.opens_at })),
-        }
-      : {}),
-    restaurants: sorted.slice(0, TEZKOR.maxRestaurants),
-    kitchens: [...new Set(all.flatMap((v) => v.kitchens))],
-  };
-}
-
-/** One restaurant's menu, optionally only dishes matching `query`. */
-export async function vendorMenu(vendorId, query, { signal } = {}) {
-  const id = String(vendorId || '').trim();
-  if (!id) return { error: 'vendor_id is required.' };
-  const a = await requireAddress();
-  const res = await fetchJson(
-    `/api/v2/vendors/${encodeURIComponent(id)}/catalog`,
-    { params: { lat: a.lat, long: a.long } },
-    { signal }
-  );
-  const categories = new Map(
-    (res?.categories || []).map((c) => [c.id, c.name])
-  );
-  const keys = stems(query);
-  const all = res?.products || [];
-  const picked = keys.length
-    ? all.filter((p) => matches(p.name, keys) || matches(p.description, keys))
-    : all;
-  return {
-    vendor: vendorSummary(res?.vendor || {}),
-    categories: [...categories.values()],
-    total_dishes: all.length,
-    ...(keys.length ? { matching: picked.length } : {}),
-    dishes: picked.slice(0, TEZKOR.maxMenuItems).map((p) => ({
-      ...dish(p),
-      category: categories.get(p.categories?.[0]) || null,
-    })),
+    ...(wanted ? { kitchen: wanted } : {}),
+    total,
+    ...(complete
+      ? { open_now: open.length }
+      : { open_now_at_least: open.length }),
+    ...(openOnly && !open.length ? { next_to_open: opening(3) } : {}),
+    restaurants: open.slice(0, TEZKOR.maxRestaurants),
+    // Closed places get their own short list, or the open ones crowd them out.
+    ...(openOnly ? {} : { closed: opening(TEZKOR.maxRestaurants) }),
+    kitchens: (kitchenFilters.get(category) || []).map((k) => k.name),
   };
 }
 
 /**
- * Opens the Uzum Tezkor website so the user can log in and place the order
- * there. JARVIS can't log in or pay itself (Uzum's login is gated to their
- * own apps, and card details are the user's to enter), so ordering happens
- * on the real site, where the user stays logged in. Opens a specific
- * restaurant when `vendorId` is given, otherwise the home screen.
+ * One restaurant's or shop's menu, optionally only what matches `query`.
+ * A shop's catalog has thousands of products and comes without them, so a
+ * shop is searched on Tezkor's side and needs a query.
  */
-export async function openTezkor({ vendorId } = {}) {
+export async function vendorMenu(vendorId, query, { signal } = {}) {
   const id = String(vendorId || '').trim();
+  if (!id) return { error: 'vendor_id is required.' };
+  const text = String(query || '').trim();
+  const a = await requireAddress();
+  const place = { lat: a.lat, long: a.long };
+  const base = `/api/v2/vendors/${encodeURIComponent(id)}/catalog`;
+  const res = await fetchJson(base, { params: place }, { signal });
+  const vendor = vendorSummary(res?.vendor || {});
+  const categories = list(res?.categories);
+  const products = res?.products || [];
+
+  const searchInside = async () => {
+    const found = await fetchJson(
+      `/api/v1/vendors/${encodeURIComponent(id)}/catalog/search`,
+      { params: { pattern: text, ...place } },
+      { signal }
+    );
+    return {
+      products: found?.products || [],
+      categories: found?.categories || [],
+    };
+  };
+
+  // Tezkor's search is fuzzy («молоко» also brings milk chocolate): keep
+  // the products that really have the words when there are any.
+  const nearest = (found) => {
+    const exact = pickMenu(found.products, found.categories, text, TEZKOR);
+    const { dishes, matching } = exact.matching
+      ? exact
+      : {
+          ...pickMenu(found.products, found.categories, '', TEZKOR),
+          matching: found.products.length,
+        };
+    return { matching, dishes };
+  };
+
+  if (products.length) {
+    const menu = pickMenu(products, categories, text, TEZKOR);
+    if (!text || menu.matching) return { vendor, ...menu };
+    // Nothing by name: let Tezkor's own (fuzzy) search try.
+    const found = await searchInside();
+    return {
+      vendor,
+      ...nearest(found),
+      categories: menu.categories,
+      total_dishes: products.length,
+    };
+  }
+
+  const sections = categories
+    .filter((c) => !c.parent)
+    .sort((x, y) => (x.order || 0) - (y.order || 0))
+    .map((c) => c.name.trim());
+  if (!text) {
+    return {
+      vendor,
+      sections,
+      note: 'A shop is too big to list: call again with query set to a product or a section.',
+    };
+  }
+  let found = await searchInside();
+  if (!found.products.length) {
+    // The query may be a section name («Хлеб»): list that section.
+    const section = categories.find(
+      (c) => c.name.trim().toLowerCase() === text.toLowerCase()
+    );
+    if (section) {
+      const inSection = await fetchJson(
+        `${base}/${encodeURIComponent(section.id)}`,
+        { params: place },
+        { signal }
+      );
+      found = { products: inSection?.products || [], categories };
+    }
+  }
+  return {
+    vendor,
+    query: text,
+    ...nearest(found),
+    ...(found.products.length ? {} : { sections }),
+  };
+}
+
+/** The saved delivery address as the user knows it, or null. */
+export async function deliveryAddress() {
+  return (await loadAddress())?.full_title || null;
+}
+
+/**
+ * Opens the Uzum Tezkor website so the user can place the order there.
+ * JARVIS can't log in or pay itself (Uzum's login is gated to their own
+ * apps, and card details are the user's to enter), so ordering happens on
+ * the real site, where the user stays logged in. Opens a restaurant when
+ * `vendorId` is given, on the dish itself (with its «Добавить» button) when
+ * `productId` is given too; otherwise the home screen.
+ *
+ * The site keeps its own delivery address and refuses a restaurant that
+ * does not deliver there («Ресторан недоступен»), so it must be the same
+ * address as the one saved here.
+ */
+export async function openTezkor({ vendorId, productId } = {}) {
+  const id = String(vendorId || '').trim();
+  const product = String(productId || '').trim();
   const path = id ? `/restaurants/${encodeURIComponent(id)}` : '';
-  await Linking.openURL(`${TEZKOR.baseUrl}/${TEZKOR.language}${path}`);
+  const query =
+    id && product ? `?product_id=${encodeURIComponent(product)}` : '';
+  await Linking.openURL(`${TEZKOR.baseUrl}/${TEZKOR.language}${path}${query}`);
 }

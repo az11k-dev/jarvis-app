@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- Uzum Tezkor: «закажи» opens the website straight on the chosen dish with its add-to-cart button (`open_tezkor` takes `product_id`) instead of the top of the restaurant page; when the site shows the restaurant as unavailable because its own delivery address differs from the one saved in JARVIS, JARVIS now explains that and offers to switch address
+- Uzum Tezkor: «что сейчас открыто?» no longer reports 200 restaurants when several hundred deliver (Tezkor returns at most 200 per request and ignores paging; the total now comes from their count and a kitchen is filtered on their side); `tezkor_menu` works for shops (it returned no products; a shop is now searched by product or section); an address outside the delivery zone is refused instead of saved, and an ambiguous one reports the other matches; delivery is no longer announced as free when the zero price is a promotion (`delivery_regular_price_sum`)
 - Fallback replies (task too complex, missing OpenAI key, connection problem) were always in Russian; they now follow the language the user spoke
 - The wake word did nothing on iOS: the on-device recognizer only exists on Android, so standby phrases were silently dropped. iOS now looks for the wake word in the OpenAI transcript; on Android the standby hint says to tap the core until the on-device model has downloaded
 - Returning to the app in the middle of a turn (e.g. from the camera) reset JARVIS to standby while it was still thinking
@@ -33,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Uzum Tezkor: dish matching works on whole words (`src/services/tezkorFormat.js`), so «osh» no longer finds «Oshin» or «lavash» Lavazza coffee; a place named in the query is recognised (`name_matches_query`); places are spoken by brand, with the branch kept separately; a menu overview takes dishes from every category and a menu query also matches category names («напитки»); dishes with paid options are marked (`has_options`); closed places say whether they open today or tomorrow. Unit tests for the helpers run with `npm test` (Node's built-in runner)
 - The interface is now English only: status lines, buttons, the log, the voice picker, the Telegram login window, error messages and notifications were partly in Russian. JARVIS still understands and answers in Russian or English
 - Privacy: in standby the wake word is checked on the device, and only phrases that start with it are sent to OpenAI — background speech (TV, calls, conversations) stays on the phone; a bare «Джарвис» is acknowledged without a cloud round-trip
 - Speech recognition now uses OpenAI `gpt-transcribe` (`EXPO_PUBLIC_OPENAI_TRANSCRIBE_MODEL` overrides it) for better accuracy; the on-device recognizer is the offline fallback when OpenAI is unreachable or takes longer than 8 s

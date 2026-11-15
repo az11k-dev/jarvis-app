@@ -12,6 +12,10 @@ import {
   CONVERSATION_WINDOW_MS,
   FOLLOW_UP_WINDOW_MS,
   OPENAI_API_KEY,
+  SOS,
+  SOS_CANCEL_PATTERN,
+  SOS_START_PATTERN,
+  SOS_STOP_PATTERN,
   TRANSCRIBE_PROMPT,
   TRANSCRIBE_TIMEOUT_MS,
   TRANSCRIPT_HALLUCINATIONS,
@@ -22,8 +26,21 @@ import {
 } from '../config/jarvis';
 import { JarvisBrain } from '../services/brain';
 import { localSpeech, SpeechNotReadyError } from '../services/localSpeech';
-import { MissingApiKeyError, transcribe } from '../services/openai';
+import {
+  MissingApiKeyError,
+  OpenAIError,
+  transcribe,
+} from '../services/openai';
+import { requestPhoneAccess } from '../services/phone';
 import { loadSettings, saveSettings } from '../services/settings';
+import {
+  isSosActive,
+  listSosContacts,
+  onSosChange,
+  requestLocationAccess,
+  startSos,
+  stopSos,
+} from '../services/sos';
 import { cleanForSpeech, voiceOutput } from '../services/voice';
 import { discardPending } from '../services/telegramSend';
 import { speechLanguage } from '../utils/language';
@@ -37,6 +54,9 @@ import { speechLanguage } from '../utils/language';
  *               conversation stays open for a few seconds); then standby
  *  thinking   – transcribing / waiting for the model / running tools
  *  speaking   – JARVIS is talking
+ *
+ * snapshot.sos: 'countdown' (an SOS alert is about to go out: «отмена» or a
+ * tap stops it), 'active' (SOS mode is on), or null.
  */
 
 const words = (text) =>
@@ -56,6 +76,40 @@ export function parseWakeWord(text) {
   const index = all.findIndex((w) => !WAKE_FILLERS.has(w));
   if (index === -1 || !WAKE_WORD_PATTERN.test(all[index])) return null;
   return all.slice(index + 1).filter((w) => !WAKE_FILLERS.has(w));
+}
+
+/** The command without the wake word and fillers, lowercase. */
+const commandOf = (text) =>
+  (parseWakeWord(text) ?? words(text).filter((w) => !WAKE_FILLERS.has(w))).join(
+    ' '
+  );
+
+const names = (list) => list.map((c) => c.name).join(', ');
+
+/** What JARVIS says once the alert has gone out. */
+function sosReport({ contacts, position }, ru) {
+  const reached = contacts.filter((c) => c.sms === true || c.telegram === true);
+  const failed = contacts.filter((c) => !reached.includes(c));
+  if (!reached.length) {
+    return ru
+      ? 'Сэр, сигнал SOS не удалось отправить никому. Проверьте связь.'
+      : 'Sir, the SOS alert reached no one. Please check the connection.';
+  }
+  const where = position
+    ? ru
+      ? 'Местоположение передано.'
+      : 'Your location was sent.'
+    : ru
+      ? 'Местоположение пока не определено, отправлю, как только появится.'
+      : 'No location yet; I will send it as soon as I have one.';
+  const missed = !failed.length
+    ? ''
+    : ru
+      ? ` Не удалось связаться: ${names(failed)}.`
+      : ` I could not reach: ${names(failed)}.`;
+  return ru
+    ? `Сигнал SOS отправлен: ${names(reached)}. ${where}${missed} Чтобы отключить, скажите: «Джарвис, отбой SOS».`
+    : `SOS alert sent to: ${names(reached)}. ${where}${missed} To call it off, say: “Jarvis, cancel SOS”.`;
 }
 
 const promptWords = words(TRANSCRIBE_PROMPT).join(' ');
@@ -87,8 +141,67 @@ const TOOL_ACTIVITY = {
   tg_send_message: 'Sending…',
   tg_delete_sent: 'Preparing to delete…',
   tg_confirm_delete: 'Deleting…',
+  tg_media: 'Opening the media…',
+  contacts_find: 'Checking contacts…',
+  sms_read: 'Reading SMS…',
+  sms_send: 'Sending SMS…',
+  call_log: 'Checking calls…',
+  phone_call: 'Preparing the call…',
+  phone_end_call: 'Ending the call…',
+  phone_answer_call: 'Answering…',
+  sos: 'SOS…',
+  sos_contacts: 'Updating SOS contacts…',
   reset_conversation: 'Clearing the chat…',
 };
+
+// What JARVIS says when a turn fails, by OpenAIError kind: [ru, en].
+const FAILURE_SPEECH = {
+  key: [
+    'Сэр, не найден ключ OpenAI. Добавьте его в файл .env.',
+    'Sir, I can’t find the OpenAI key. Please add it to the .env file.',
+  ],
+  timeout: [
+    'Сэр, сервер не ответил вовремя. Повторите, пожалуйста.',
+    'Sir, the server took too long to answer. Please say that again.',
+  ],
+  network: [
+    'Сэр, нет связи с сервером. Проверьте интернет и повторите.',
+    'Sir, I can’t reach the server. Please check the connection and try again.',
+  ],
+  auth: [
+    'Сэр, ключ OpenAI не принят. Его нужно проверить.',
+    'Sir, the OpenAI key was rejected. It needs checking.',
+  ],
+  quota: [
+    'Сэр, на счёте OpenAI закончились средства.',
+    'Sir, the OpenAI account has run out of credit.',
+  ],
+  rate: [
+    'Сэр, слишком много запросов. Повторите через минуту.',
+    'Sir, too many requests. Please try again in a minute.',
+  ],
+  server: [
+    'Сэр, на стороне OpenAI сбой. Повторите чуть позже.',
+    'Sir, OpenAI is having trouble. Please try again shortly.',
+  ],
+  empty: [
+    'Сэр, я не получил ответа. Повторите, пожалуйста.',
+    'Sir, I got no answer. Please say that again.',
+  ],
+  other: [
+    'Сэр, произошла ошибка. Повторите, пожалуйста.',
+    'Sir, something went wrong. Please say that again.',
+  ],
+};
+
+function failureKind(e) {
+  if (e instanceof MissingApiKeyError) return 'key';
+  if (e instanceof OpenAIError && FAILURE_SPEECH[e.kind]) return e.kind;
+  if (/network request failed|failed to fetch/i.test(e?.message || '')) {
+    return 'network';
+  }
+  return 'other';
+}
 
 let messageId = 0;
 
@@ -105,6 +218,9 @@ export class JarvisEngine {
   appActive = true;
   disposed = false;
   micFailed = false; // start() was rejected; retry when the app is active
+  recorder = null; // (samples, sampleRate) while recordAmbient() runs
+  sosPending = false; // the SOS countdown is running (or being announced)
+  sosTimer = null;
 
   snapshot = {
     status: 'off',
@@ -115,6 +231,7 @@ export class JarvisEngine {
     speech: localSpeech.state, // on-device model downloads / readiness
     error: null,
     activity: null,
+    sos: null,
   };
 
   // The language the user last spoke ('ru' | 'en'), for replies made in
@@ -197,6 +314,17 @@ export class JarvisEngine {
       this.set({ error: 'No microphone permission', status: 'off' });
       return;
     }
+    // Everything SMS, calls and SOS need is asked for now, with the app on
+    // screen, so nothing waits for a dialog when the user talks hands-free.
+    // Location comes before the microphone service starts: the service then
+    // may get a position in the background too.
+    await requestPhoneAccess();
+    await requestLocationAccess();
+    this.unsubscribeSos?.();
+    this.unsubscribeSos = onSosChange((active) => {
+      if (!this.sosPending) this.set({ sos: active ? 'active' : null });
+    });
+
     await setAudioModeAsync({
       playsInSilentMode: true,
       allowsRecording: true,
@@ -213,19 +341,29 @@ export class JarvisEngine {
     this.disposed = true;
     this.unsubscribeSpeech?.();
     this.unsubscribeSpeech = null;
+    this.unsubscribeSos?.();
+    this.unsubscribeSos = null;
+    clearTimeout(this.sosTimer);
+    this.sosPending = false;
     this.cancelTurn();
     this.stopMic();
   }
 
   async startMic(status) {
     if (!this.stream || this.disposed) return;
+    const before = this.status;
     try {
       // The microphone can only be opened while the app is visible; a
       // background service then keeps it open after the user leaves.
       if (!this.stream.isStreaming && this.appActive) await this.stream.start();
       this.micFailed = false;
       this.vad.reset();
-      this.set({ status, error: null });
+      // A turn may have moved on while the microphone was opening; putting
+      // the old status back would leave JARVIS stuck in it.
+      this.set({
+        status: this.status === before ? status : this.status,
+        error: null,
+      });
       if (this.appActive) await this.startBackgroundService();
     } catch (e) {
       console.warn('Mic start failed:', e);
@@ -283,6 +421,10 @@ export class JarvisEngine {
 
   /** The main orb: wake / interrupt / dismiss. */
   async tap() {
+    if (this.sosPending) {
+      this.cancelSos();
+      return;
+    }
     switch (this.status) {
       case 'off':
         await this.setMicEnabled(true);
@@ -356,9 +498,10 @@ export class JarvisEngine {
   }
 
   /**
-   * Speaks new Telegram messages, then listens briefly so the user can
-   * answer without the wake word. `note` (with message ids) goes into the
-   * conversation so «ответь ему» knows what "him" is.
+   * Speaks new Telegram messages and goes back to standby: an announcement
+   * doesn't open the microphone for commands, the wake word does. `note`
+   * (with message ids) goes into the conversation so «Джарвис, ответь ему»
+   * knows what "him" is.
    */
   async announceIncoming(text, note) {
     if (!this.isIdle()) return false;
@@ -371,7 +514,7 @@ export class JarvisEngine {
     } finally {
       if (turn === this.turn) this.busy = false;
     }
-    if (turn === this.turn) this.resumeAfterSpeaking('listening');
+    if (turn === this.turn) this.resumeAfterSpeaking('standby');
     return true;
   }
 
@@ -443,6 +586,9 @@ export class JarvisEngine {
   // ── audio pipeline ────────────────────────────────────────────────────
 
   handleBuffer = (buffer) => {
+    if (this.recorder && buffer.channels === 1) {
+      this.recorder(new Int16Array(buffer.data.slice(0)), buffer.sampleRate);
+    }
     const status = this.status;
     if ((status !== 'standby' && status !== 'listening') || this.busy) return;
     if (buffer.channels !== 1) return;
@@ -450,12 +596,15 @@ export class JarvisEngine {
   };
 
   handleSpeechStart() {
+    // Speech holds the SOS countdown until it is clear what was said.
+    if (this.sosPending) clearTimeout(this.sosTimer);
     if (this.status === 'listening') this.clearFollowUp();
     this.set({ userSpeaking: true });
   }
 
   async handleSpeechEnd(utterance) {
     this.set({ userSpeaking: false });
+    if (this.sosPending) return this.hearDuringCountdown(utterance);
     const wasListening = this.status === 'listening';
     if (!utterance) {
       if (wasListening) this.resumeListening();
@@ -471,6 +620,7 @@ export class JarvisEngine {
 
     try {
       let text;
+      let heardLocally = null; // what the device heard, when it heard it all
       if (!wasListening && localSpeech.supported) {
         // Standby: look for the wake word on the device first, so speech
         // that isn't for JARVIS (TV, calls, people talking) never leaves
@@ -483,6 +633,7 @@ export class JarvisEngine {
           return;
         }
         engaged = true;
+        if (heard.complete) heardLocally = heard.text;
         // A bare "Jarvis" needs no cloud round-trip, nor does anything
         // when there is no OpenAI key (transcribe() would go local anyway).
         if (heard.complete && (heard.bare || !OPENAI_API_KEY)) {
@@ -500,6 +651,10 @@ export class JarvisEngine {
 
       if (this.snapshot.error === 'Can’t reach OpenAI')
         this.set({ error: null });
+
+      // The device heard the wake word but the cloud transcript came back
+      // empty: go by what the device heard rather than drop the command.
+      if (isNoise(text) && heardLocally) text = heardLocally;
 
       if (isNoise(text)) {
         this.busy = false;
@@ -537,7 +692,7 @@ export class JarvisEngine {
       if (turn !== this.turn || signal.aborted) return;
       this.busy = false;
       if (e instanceof SpeechNotReadyError) {
-        if (wasListening) {
+        if (engaged) {
           this.addMessage(
             'error',
             'The speech recognition model is still downloading'
@@ -546,8 +701,8 @@ export class JarvisEngine {
         }
         return;
       }
-      console.warn('Jarvis turn failed:', e);
       if (!engaged) {
+        console.warn('Jarvis turn failed:', e);
         // Don't announce errors for background noise heard in standby.
         this.set({
           error:
@@ -557,18 +712,7 @@ export class JarvisEngine {
         });
         return;
       }
-      const ru = this.lang === 'ru';
-      const message =
-        e instanceof MissingApiKeyError
-          ? ru
-            ? 'Сэр, не найден ключ OpenAI. Добавьте его в файл .env.'
-            : 'Sir, I can’t find the OpenAI key. Please add it to the .env file.'
-          : ru
-            ? 'Сэр, возникла проблема со связью. Повторите, пожалуйста.'
-            : 'Sir, there’s a connection problem. Please say that again.';
-      this.addMessage('error', e.message);
-      await this.say(message);
-      if (turn === this.turn) this.resumeAfterSpeaking();
+      await this.failTurn(e, turn);
     } finally {
       if (turn === this.turn) {
         this.busy = false;
@@ -639,8 +783,8 @@ export class JarvisEngine {
       await this.converse(text, turn, signal);
     } catch (e) {
       if (turn !== this.turn || signal.aborted) return;
-      this.addMessage('error', e.message);
-      this.resumeAfterSpeaking();
+      this.busy = false;
+      await this.failTurn(e, turn);
     } finally {
       if (turn === this.turn) {
         this.busy = false;
@@ -649,9 +793,28 @@ export class JarvisEngine {
     }
   }
 
+  /** Says why a turn failed: a command never ends in silence. */
+  async failTurn(e, turn) {
+    console.warn('Jarvis turn failed:', e);
+    this.addMessage('error', e.message);
+    this.set({ activity: null });
+    const [ru, en] = FAILURE_SPEECH[failureKind(e)];
+    await this.say(this.lang === 'ru' ? ru : en);
+    if (turn === this.turn) this.resumeAfterSpeaking();
+  }
+
   async converse(text, turn, signal) {
     this.addMessage('user', text);
+    // "SOS" alone says nothing about the language: keep the last one.
+    this.lang = speechLanguage(text.replace(/s\.?o\.?s\.?/gi, ''), this.lang);
     this.set({ status: 'thinking', activity: 'Thinking…' });
+
+    // «Джарвис, SOS» works without the model (and without the internet).
+    const command = commandOf(text);
+    if (SOS_START_PATTERN.test(command)) return this.beginSos(turn);
+    if (isSosActive() && SOS_STOP_PATTERN.test(command)) {
+      return this.endSos(turn);
+    }
 
     const reply = await this.brain.respond(text, {
       signal,
@@ -661,6 +824,7 @@ export class JarvisEngine {
         }),
     });
     if (turn !== this.turn) return;
+    if (reply.sos === 'start') return this.beginSos(turn);
 
     // "Reset the chat" by voice: same as the RESET button, but JARVIS's
     // confirmation stays on the cleared screen.
@@ -676,8 +840,13 @@ export class JarvisEngine {
     this.busy = false;
     for (const action of reply.after) {
       try {
-        await action();
+        if (action.label) {
+          this.set({ status: 'speaking', activity: action.label });
+        }
+        await action({ signal });
+        if (turn !== this.turn) return;
       } catch (e) {
+        if (turn !== this.turn) return;
         this.addMessage('error', e.message);
       }
     }
@@ -685,8 +854,9 @@ export class JarvisEngine {
 
     // Keep the conversation open so the next phrase needs no wake word —
     // unless the user signed off, or JARVIS opened another app (its sound,
-    // e.g. a YouTube video, would be taken for the user talking).
-    if (reply.endConversation || reply.after.length) {
+    // e.g. a YouTube video, would be taken for the user talking). keepOpen:
+    // what ran afterwards has ended (a voice message was played).
+    if (reply.endConversation || (reply.after.length && !reply.keepOpen)) {
       this.resumeAfterSpeaking('standby');
     } else {
       const asked = /\?\s*$/.test(reply.text || '');
@@ -695,5 +865,174 @@ export class JarvisEngine {
         asked ? CONVERSATION_QUESTION_WINDOW_MS : CONVERSATION_WINDOW_MS
       );
     }
+  }
+
+  // ── SOS ───────────────────────────────────────────────────────────────
+
+  /** Reply made in code, shown and spoken. */
+  async report(ru, en) {
+    const text = this.lang === 'ru' ? ru : en;
+    this.addMessage('jarvis', text);
+    this.set({ activity: null });
+    await this.say(text);
+  }
+
+  /**
+   * Announces the alert and gives a few seconds to stop it: «отмена» or a
+   * tap on the core. Silence, or anything else said, sends it.
+   */
+  async beginSos(turn) {
+    if (!(await listSosContacts()).length) {
+      await this.report(
+        'Сэр, SOS-контакты не заданы. Скажите, например: «добавь папу в SOS-контакты».',
+        'Sir, there are no SOS contacts yet. Say, for example: “add my dad to the SOS contacts”.'
+      );
+      if (turn !== this.turn) return;
+      this.busy = false;
+      this.resumeAfterSpeaking();
+      return;
+    }
+    this.sosPending = true;
+    this.set({ sos: 'countdown' });
+    await this.report(
+      'Режим SOS. Отправляю сигнал через пять секунд. Скажите «отмена» или коснитесь экрана.',
+      'SOS mode. Sending the alert in five seconds. Say “cancel” or tap the screen.'
+    );
+    if (turn !== this.turn || !this.sosPending) return; // stopped by a tap
+    this.busy = false;
+    this.clearFollowUp();
+    this.vad.reset();
+    this.vad.ignoreFor(VAD.echoGuardMs);
+    this.set({ status: 'listening', userSpeaking: false, activity: null });
+    this.armSos(SOS.countdownMs);
+  }
+
+  armSos(ms) {
+    clearTimeout(this.sosTimer);
+    this.sosTimer = setTimeout(() => this.fireSos(), ms);
+  }
+
+  /** Something was said during the countdown: «отмена» stops the alert. */
+  async hearDuringCountdown(utterance) {
+    if (!utterance) {
+      this.armSos(SOS.afterNoiseMs); // a noise, not speech
+      return;
+    }
+    this.busy = true;
+    let text = '';
+    try {
+      const wav = encodeWav(utterance.chunks, utterance.sampleRate);
+      // Both recognizers, so a misheard «отмена» is less likely to send
+      // a false alarm; on the device alone when there is no connection.
+      const heard = await Promise.all([
+        localSpeech.sttReady ? localSpeech.transcribe(wav).catch(() => '') : '',
+        OPENAI_API_KEY
+          ? transcribe(wav, { timeoutMs: SOS.cancelCheckTimeoutMs }).catch(
+              () => ''
+            )
+          : '',
+      ]);
+      text = heard.join(' | ');
+    } catch (e) {
+      console.warn('SOS countdown: could not make out the speech:', e.message);
+    }
+    this.busy = false;
+    if (!this.sosPending) return; // stopped by a tap meanwhile
+    if (__DEV__) console.log(`[sos] heard during countdown: ${text}`);
+    if (SOS_CANCEL_PATTERN.test(text)) this.cancelSos();
+    else this.fireSos();
+  }
+
+  async cancelSos() {
+    clearTimeout(this.sosTimer);
+    this.sosPending = false;
+    this.cancelTurn();
+    this.clearFollowUp();
+    this.set({ sos: isSosActive() ? 'active' : null });
+    const turn = ++this.turn;
+    this.busy = true;
+    await this.report('SOS отменён, сэр.', 'SOS cancelled, sir.');
+    if (turn !== this.turn) return;
+    this.busy = false;
+    this.resumeAfterSpeaking('standby');
+  }
+
+  /** Sends the alert, says who got it, then records a voice message for them. */
+  async fireSos() {
+    clearTimeout(this.sosTimer);
+    this.sosPending = false;
+    this.cancelTurn();
+    this.clearFollowUp();
+    const turn = ++this.turn;
+    this.busy = true;
+    this.set({
+      status: 'thinking',
+      activity: 'Sending SOS…',
+      userSpeaking: false,
+      sos: 'active',
+    });
+    let result = null;
+    try {
+      result = await startSos();
+      const ru = this.lang === 'ru';
+      const text = sosReport(result, ru);
+      this.addMessage('jarvis', text);
+      this.set({ activity: null });
+      if (turn === this.turn) await this.say(text);
+    } catch (e) {
+      console.warn('SOS failed:', e);
+      this.addMessage('error', e.message);
+      if (turn === this.turn) {
+        await this.report(
+          'Сэр, не удалось отправить сигнал SOS.',
+          'Sir, the SOS alert could not be sent.'
+        );
+      }
+    }
+    this.set({ sos: isSosActive() ? 'active' : null });
+    // What the microphone hears next goes to the contacts as a voice message.
+    if (result?.sendVoice) {
+      this.recordAmbient(SOS.voiceMs)
+        .then(result.sendVoice)
+        .catch((e) => console.warn('SOS voice message failed:', e.message));
+    }
+    if (turn !== this.turn) return;
+    this.busy = false;
+    this.resumeAfterSpeaking('standby');
+  }
+
+  /** «Джарвис, отбой SOS»: stops the alarm and tells the contacts. */
+  async endSos(turn) {
+    this.set({ status: 'thinking', activity: 'Stopping SOS…' });
+    const { contacts = [] } = await stopSos();
+    if (turn !== this.turn) return;
+    const told = contacts.filter((c) => c.sms === true || c.telegram === true);
+    await this.report(
+      told.length
+        ? 'Режим SOS отключён. Контактам отправлено, что с вами всё в порядке.'
+        : 'Режим SOS отключён, сэр.',
+      told.length
+        ? 'SOS mode is off. Your contacts were told you are all right.'
+        : 'SOS mode is off, sir.'
+    );
+    if (turn !== this.turn) return;
+    this.busy = false;
+    this.resumeAfterSpeaking('standby');
+  }
+
+  /** The next `ms` of microphone audio as WAV bytes (null if the mic is off). */
+  recordAmbient(ms) {
+    return new Promise((resolve) => {
+      const chunks = [];
+      let rate = 16000;
+      this.recorder = (samples, sampleRate) => {
+        chunks.push(samples);
+        rate = sampleRate;
+      };
+      setTimeout(() => {
+        this.recorder = null;
+        resolve(chunks.length ? encodeWav(chunks, rate) : null);
+      }, ms);
+    });
   }
 }

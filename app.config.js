@@ -53,6 +53,14 @@ export default {
         },
       ],
       [
+        'expo-location',
+        {
+          locationWhenInUsePermission:
+            'Allow $(PRODUCT_NAME) to send your location to your SOS contacts.',
+        },
+      ],
+      'expo-video',
+      [
         'expo-image-picker',
         {
           cameraPermission:

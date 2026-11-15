@@ -1,5 +1,9 @@
 import * as Td from '../../modules/jarvis-telegram';
-import { TELEGRAM_API_HASH, TELEGRAM_API_ID } from '../config/jarvis';
+import {
+  TELEGRAM_API_HASH,
+  TELEGRAM_API_ID,
+  TELEGRAM_TEST_DC,
+} from '../config/jarvis';
 
 /**
  * Telegram as the user's own account. Keeps the login state that the
@@ -85,7 +89,7 @@ async function onAuthState(auth) {
     case 'authorizationStateClosed':
       // After a log out TDLib closes the client; a fresh one asks for the phone.
       setState({ step: 'loading', me: null });
-      Td.start(TELEGRAM_API_ID, TELEGRAM_API_HASH);
+      Td.start(TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_TEST_DC);
       return;
     default:
       if (UNSUPPORTED[type]) {
@@ -108,7 +112,7 @@ export async function startTelegram() {
     }
     updateHandlers.get(update['@type'])?.forEach((handler) => handler(update));
   });
-  Td.start(TELEGRAM_API_ID, TELEGRAM_API_HASH);
+  Td.start(TELEGRAM_API_ID, TELEGRAM_API_HASH, TELEGRAM_TEST_DC);
   // The client outlives JS reloads, so its auth update may have gone out
   // before this listener existed. Events and promise results can arrive in
   // either order, so an update always wins over this answer.

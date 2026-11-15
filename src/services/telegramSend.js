@@ -74,6 +74,68 @@ export function discardPending() {
 
 // ── send ──────────────────────────────────────────────────────────────────
 
+/**
+ * Sends one message with any content (text, location, voice note…) and
+ * waits until Telegram confirms delivery. Resolves with
+ * { status: 'sent' | 'still_sending', message } — `message` has its final
+ * id once sent; throws when Telegram refuses it.
+ */
+export async function deliver(
+  chatId,
+  content,
+  { replyToId = 0, timeoutMs = TELEGRAM_SEND.deliveryTimeoutMs } = {}
+) {
+  // Delivery updates can reach JS before the sendMessage result does, so
+  // listen first and match by the temporary message id afterwards.
+  const outcomes = new Map();
+  let wake = null;
+  const record = (update) => {
+    outcomes.set(update.old_message_id, update);
+    wake?.();
+  };
+  const unsubscribe = [
+    onTelegramUpdate('updateMessageSendSucceeded', record),
+    onTelegramUpdate('updateMessageSendFailed', record),
+  ];
+  try {
+    const sent = await Td.send({
+      '@type': 'sendMessage',
+      chat_id: chatId,
+      reply_to: replyToId
+        ? { '@type': 'inputMessageReplyToMessage', message_id: replyToId }
+        : undefined,
+      input_message_content: content,
+    });
+    if (!sent.sending_state) return { status: 'sent', message: sent };
+
+    const deadline = Date.now() + timeoutMs;
+    while (!outcomes.has(sent.id) && Date.now() < deadline) {
+      let timer;
+      await new Promise((resolve) => {
+        wake = resolve;
+        timer = setTimeout(resolve, 500);
+      });
+      clearTimeout(timer);
+    }
+    const outcome = outcomes.get(sent.id);
+    if (!outcome) return { status: 'still_sending', message: sent };
+    if (outcome['@type'] === 'updateMessageSendFailed') {
+      throw new Error(
+        `Telegram did not send it: ${outcome.error?.message || 'unknown error'}`
+      );
+    }
+    return { status: 'sent', message: outcome.message };
+  } finally {
+    unsubscribe.forEach((off) => off());
+  }
+}
+
+export const textContent = (text) => ({
+  '@type': 'inputMessageText',
+  text: { '@type': 'formattedText', text, entities: [] },
+  clear_draft: true,
+});
+
 /** Sends a message from the user's account and waits until Telegram confirms delivery. */
 export async function sendMessage({ chatId, text, replyToId }) {
   await requireReady();
@@ -91,65 +153,21 @@ export async function sendMessage({ chatId, text, replyToId }) {
       return { error: 'The message to reply to was not found in this chat.' };
     }
   }
-  const d = {
-    chatId: chat.id,
-    title: titleOf(chat),
-    text: body,
-    replyToId: replyTo,
-  };
-
-  // Delivery updates can reach JS before the sendMessage result does, so
-  // listen first and match by the temporary message id afterwards.
-  const outcomes = new Map();
-  let wake = null;
-  const record = (update) => {
-    outcomes.set(update.old_message_id, update);
-    wake?.();
-  };
-  const unsubscribe = [
-    onTelegramUpdate('updateMessageSendSucceeded', record),
-    onTelegramUpdate('updateMessageSendFailed', record),
-  ];
+  const title = titleOf(chat);
   try {
-    const sent = await Td.send({
-      '@type': 'sendMessage',
-      chat_id: d.chatId,
-      reply_to: d.replyToId
-        ? { '@type': 'inputMessageReplyToMessage', message_id: d.replyToId }
-        : undefined,
-      input_message_content: {
-        '@type': 'inputMessageText',
-        text: { '@type': 'formattedText', text: d.text, entities: [] },
-        clear_draft: true,
-      },
+    const { status } = await deliver(chat.id, textContent(body), {
+      replyToId: replyTo,
     });
-    if (!sent.sending_state) return { status: 'sent', chat: d.title };
-
-    const deadline = Date.now() + TELEGRAM_SEND.deliveryTimeoutMs;
-    while (!outcomes.has(sent.id) && Date.now() < deadline) {
-      let timer;
-      await new Promise((resolve) => {
-        wake = resolve;
-        timer = setTimeout(resolve, 500);
-      });
-      clearTimeout(timer);
-    }
-    const outcome = outcomes.get(sent.id);
-    if (!outcome) {
+    if (status === 'still_sending') {
       return {
-        status: 'still_sending',
-        chat: d.title,
+        status,
+        chat: title,
         note: 'Telegram has not confirmed yet (slow connection); it will be sent when the connection allows.',
       };
     }
-    if (outcome['@type'] === 'updateMessageSendFailed') {
-      return {
-        error: `Telegram did not send it: ${outcome.error?.message || 'unknown error'}`,
-      };
-    }
-    return { status: 'sent', chat: d.title };
-  } finally {
-    unsubscribe.forEach((off) => off());
+    return { status: 'sent', chat: title };
+  } catch (e) {
+    return { error: e.message };
   }
 }
 

@@ -26,15 +26,19 @@ internal object Telegram {
 
   private var apiId = 0
   private var apiHash = ""
+  private var testDc = false
   private lateinit var root: File
   private lateinit var appVersion: String
 
   @Synchronized
-  fun start(context: Context, apiId: Int, apiHash: String) {
+  fun start(context: Context, apiId: Int, apiHash: String, testDc: Boolean) {
     if (client != null) return
     this.apiId = apiId
     this.apiHash = apiHash
-    root = File(context.filesDir, "tdlib")
+    this.testDc = testDc
+    // Telegram's test servers (development only) keep their own session, so
+    // switching to them never touches the user's real one.
+    root = File(context.filesDir, if (testDc) "tdlib-test" else "tdlib")
     appVersion = try {
       context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0"
     } catch (e: Exception) {
@@ -72,7 +76,7 @@ internal object Telegram {
       key = DatabaseKey.load(keyFile)!!
     }
     val params = TdApi.SetTdlibParameters().apply {
-      useTestDc = false
+      useTestDc = testDc
       databaseDirectory = File(root, "db").absolutePath
       filesDirectory = File(root, "files").absolutePath
       databaseEncryptionKey = key

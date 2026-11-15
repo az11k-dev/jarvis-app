@@ -35,9 +35,9 @@ class JarvisTelegramModule : Module() {
     OnDestroy { if (Telegram.sink === sink) Telegram.sink = null }
 
     /** Creates the TDLib client if there isn't one; safe to call again. */
-    Function("start") { apiId: Int, apiHash: String ->
+    Function("start") { apiId: Int, apiHash: String, testDc: Boolean ->
       val context = appContext.reactContext ?: throw IOException("No Android context")
-      Telegram.start(context.applicationContext, apiId, apiHash)
+      Telegram.start(context.applicationContext, apiId, apiHash, testDc)
     }
 
     /** Update @types to deliver through onUpdate, besides auth state. */

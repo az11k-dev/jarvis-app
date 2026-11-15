@@ -13,7 +13,9 @@ const Native =
 
 export const isSupported = !!Native;
 
-export const start = (apiId, apiHash) => Native.start(apiId, apiHash);
+/** `testDc` connects to Telegram's test servers instead (development). */
+export const start = (apiId, apiHash, testDc = false) =>
+  Native.start(apiId, apiHash, testDc);
 
 /** Resolves with the TDLib result object; rejects with TDLib's error message. */
 export async function send(request) {

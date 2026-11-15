@@ -1,13 +1,34 @@
 import { JARVIS_INSTRUCTIONS } from '../utils/constants';
 import { speechLanguage } from '../utils/language';
-import { createResponse } from './openai';
-import { runTool, TOOL_DEFINITIONS } from './tools';
+import { TOOL_TIMEOUT_MS } from '../config/jarvis';
+import { createResponse, OpenAIError } from './openai';
+import { runTool, TOOL_DEFINITIONS, UNTIMED_TOOLS } from './tools';
 
 const MAX_TOOL_ROUNDS = 5;
 const MAX_HISTORY_ITEMS = 30;
 // Tools whose result needs no follow-up from the model when it already
 // gave a reply alongside them.
 const FINAL_TOOLS = new Set(['end_conversation', 'reset_conversation']);
+
+/** runTool, but a tool that hangs (Telegram offline, a dead site) fails. */
+function runToolInTime(name, args, context) {
+  const run = runTool(name, args, context);
+  if (UNTIMED_TOOLS.has(name)) return run;
+  let timer;
+  const limit = new Promise((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `Timed out: no result in ${Math.round(TOOL_TIMEOUT_MS / 1000)} s. Tell the user it did not work.`
+          )
+        ),
+      TOOL_TIMEOUT_MS
+    );
+  });
+  run.catch(() => {}); // a late failure after the timeout is not unhandled
+  return Promise.race([run, limit]).finally(() => clearTimeout(timer));
+}
 
 function instructions() {
   const now = new Date();
@@ -61,6 +82,8 @@ export class JarvisBrain {
     const after = [];
     let endConversation = false;
     let resetConversation = false;
+    let keepOpen = false;
+    let emptyReplies = 0;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const response = await createResponse(
@@ -82,10 +105,22 @@ export class JarvisBrain {
           if (c.name === 'end_conversation') endConversation = true;
           if (c.name === 'reset_conversation') resetConversation = true;
         }
+        // Nothing to say and nothing to do (e.g. the reply was cut off at
+        // the token limit): ask once more, then fail out loud. A sign-off
+        // may be silent.
+        if (!text && !endConversation) {
+          if (__DEV__) {
+            console.log(
+              `[brain] empty reply: status=${response.status} reason=${response.incomplete_details?.reason}`
+            );
+          }
+          if (++emptyReplies < 2) continue;
+          throw new OpenAIError('empty', 'The model returned an empty reply');
+        }
         input.push({ role: 'assistant', content: text || '…' });
         this.history = input;
         this.trimHistory();
-        return { text, after, endConversation, resetConversation };
+        return { text, after, endConversation, resetConversation, keepOpen };
       }
 
       for (const call of calls) {
@@ -94,12 +129,24 @@ export class JarvisBrain {
         let output;
         try {
           const args = call.arguments ? JSON.parse(call.arguments) : {};
-          const result = await runTool(call.name, args, { signal, turn });
+          const result = await runToolInTime(call.name, args, { signal, turn });
           output = result.output;
           if (result.after) after.push(result.after);
+          if (result.keepOpen) keepOpen = true;
+          // The alarm is raised by the engine, with its own countdown.
+          if (result.sos === 'start') {
+            input.push({
+              role: 'assistant',
+              content: '[SOS countdown started]',
+            });
+            this.history = input.filter((item) => item.role);
+            this.trimHistory();
+            return { text: '', after: [], sos: 'start' };
+          }
           if (result.endConversation) endConversation = true;
           if (result.resetConversation) resetConversation = true;
         } catch (e) {
+          if (signal?.aborted) throw e;
           output = { error: e.message };
         }
         if (__DEV__) {
@@ -133,6 +180,7 @@ export class JarvisBrain {
       after,
       endConversation,
       resetConversation,
+      keepOpen,
     };
   }
 }

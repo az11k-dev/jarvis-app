@@ -21,6 +21,13 @@ export const MODELS = {
 // on-device recognizer. Short phrases normally come back in 1–2 s.
 export const TRANSCRIBE_TIMEOUT_MS = 8000;
 
+// One request to the chat model may take this long (web search included)
+// before JARVIS gives up and says so, instead of thinking forever.
+export const CHAT_TIMEOUT_MS = 45000;
+// A tool that hasn't finished by then is reported to the model as failed.
+// Tools the user takes part in (camera, playing media) have no limit.
+export const TOOL_TIMEOUT_MS = 45000;
+
 // In standby the on-device recognizer checks this much of each utterance
 // for the wake word; only phrases that open with it go to OpenAI. Leaves
 // room for pre-roll and fillers («эй, слушай, Джарвис»).
@@ -179,6 +186,9 @@ export const ACK_PHRASES = {
 // From https://my.telegram.org → API development tools.
 export const TELEGRAM_API_ID = Number(process.env.EXPO_PUBLIC_TG_API_ID) || 0;
 export const TELEGRAM_API_HASH = process.env.EXPO_PUBLIC_TG_API_HASH || '';
+// Development only: 1 connects to Telegram's test servers (test accounts,
+// a separate session) instead of the real ones.
+export const TELEGRAM_TEST_DC = process.env.EXPO_PUBLIC_TG_TEST_DC === '1';
 
 // How much of Telegram JARVIS reads per request (keeps answers and token
 // use small; "read more" asks again with a higher limit).
@@ -190,6 +200,62 @@ export const TELEGRAM_READ = {
   maxMessageChars: 800, // longer messages are cut
   defaultSearchResults: 10,
   maxSearchResults: 20,
+};
+
+// ── The phone itself: SMS, calls, contacts (modules/jarvis-phone) ──
+export const PHONE = {
+  contactsCacheMs: 60000, // the phone book is re-read at most this often
+  maxContactMatches: 5,
+  defaultSms: 10,
+  maxSms: 30,
+  maxSmsChars: 500, // longer messages are cut when read
+  maxSmsLength: 700, // longest SMS JARVIS will send (several parts)
+  defaultCalls: 10,
+  maxCalls: 30,
+};
+
+// How the user is named in messages JARVIS sends on its own (SOS alerts).
+export const OWNER_NAME = process.env.EXPO_PUBLIC_OWNER_NAME || 'Азизбек';
+
+// SOS mode (src/services/sos.js).
+export const SOS = {
+  countdownMs: 6000,
+  cancelCheckTimeoutMs: 4000, // cloud transcript of what was said meanwhile // time to say «отмена» or tap before the alert goes out
+  locationTimeoutMs: 12000, // wait this long for a fresh position
+  updateTimeoutMs: 20000,
+  freshMs: 2 * 60 * 1000, // an older last-known position is marked as such
+  liveMinutes: 60, // Telegram live location runs this long
+  updateMs: 60000, // the live location moves this often
+  telegramTimeoutMs: 15000,
+  voiceMs: 15000, // length of the voice message with what the mic hears
+  voiceTimeoutMs: 60000,
+};
+
+SOS.afterNoiseMs = 1500; // countdown left after a noise interrupted it
+
+// Matched against the command without the wake word, lowercase, no
+// punctuation. Only a command that is nothing but the alarm starts it in
+// code; anything longer («сообщи родителям, что мне плохо») goes to the model.
+export const SOS_START_PATTERN =
+  /^(?:(?:включи|активируй|запусти|start|activate)\s+)?(?:режим\s+)?(?:sos|сос|с о с|s o s)(?:\s+(?:режим|mode|сигнал))?$|^(?:на помощь|спасите|mayday)$/;
+export const SOS_STOP_PATTERN =
+  /^(?:отмен\S*|отбой|выключи|отключи|останови|stop|cancel)\s+(?:режим\s+)?(?:sos|сос)(?:\s+(?:режим|mode))?$|^я в порядке$|^i am (?:ok|okay|fine)$/;
+// Anything said during the countdown that means "don't send", including
+// how the on-device recognizer mishears «отмена» (атмена, Admenada).
+export const SOS_CANCEL_PATTERN =
+  /[оа][тд]м[еэи]н|отбой|стоп|не надо|не нужно|ложн|[oa][td]m[eai]n|cancel|stop|abort|never ?mind/i;
+
+// Photos, videos and voice messages from Telegram chats.
+export const TELEGRAM_MEDIA = {
+  maxDownloadMb: 100, // bigger files are not downloaded
+  downloadTimeoutMs: 30000, // plus downloadMsPerMb for each MB
+  downloadMsPerMb: 3000,
+  lookBack: 30, // messages searched for «последнее фото», «голосовое»
+  visionMaxSide: 1600, // photo size sent to the vision model
+  videoFrames: 4, // frames of a video shown to the vision model
+  frameMaxSide: 768,
+  maxTranscribeMb: 24, // OpenAI takes recordings up to 25 MB
+  transcribeTimeoutMs: 60000,
 };
 
 // Sending and deleting Telegram messages (deleting is read back and confirmed).

@@ -196,7 +196,7 @@ const wordMatches = (spoken, word) =>
  * 3 exact, 2 every spoken word matches a title word, 1 matches with the
  * spaces dropped (speech recognition merges words: «Русланака»), 0 no match.
  */
-function nameScore(spoken, title) {
+export function nameScore(spoken, title) {
   const q = nameKey(spoken);
   const t = nameKey(title);
   if (!q || !t) return 0;
@@ -340,6 +340,9 @@ async function senderName(sender, meId) {
   return 'unknown';
 }
 
+/** Who wrote a message: a name, or "me" for the user. */
+export const messageSender = (message) => senderName(message.sender_id, myId);
+
 const ft = (formatted) =>
   typeof formatted === 'string' ? formatted : formatted?.text || '';
 
@@ -390,7 +393,7 @@ function contentText(content) {
   }
 }
 
-function timeLabel(unix) {
+export function timeLabel(unix) {
   const d = new Date(unix * 1000);
   const hm = d.toTimeString().slice(0, 5);
   const today = new Date();

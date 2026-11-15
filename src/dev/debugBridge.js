@@ -11,7 +11,8 @@ import * as Speech from 'expo-speech';
  * `exp+jarvis-app://debug?telemetry=on` adds per-second mic levels;
  * `?say=<text>` makes JARVIS itself say the text (tests his voice);
  * `?ask=<text>` runs a command as if spoken, skipping speech recognition
- * (`?new&ask=…` starts a fresh conversation first).
+ * (`?new&ask=…` starts a fresh conversation first);
+ * `?td=<json>` sends a raw TDLib request and logs its result.
  */
 export function attachDebugBridge(engine) {
   let last = {};
@@ -78,6 +79,82 @@ export function attachDebugBridge(engine) {
       const text = decodeURIComponent(ask[1].replace(/\+/g, ' '));
       console.log(`[jarvis] debug ask: ${text}`);
       engine.ask(text);
+      return;
+    }
+    // ?media=<describe|show|play|transcribe>&kind=<photo|video|voice_message>
+    // &path=<file on the phone>[&q=<question>] runs the Telegram media
+    // action on a local file, for testing without a chat.
+    const media = /[?&]media=(\w+)/.exec(url || '');
+    if (media) {
+      const param = (name) => {
+        const m = new RegExp(`[?&]${name}=([^&]+)`).exec(url);
+        return m ? decodeURIComponent(m[1].replace(/\+/g, ' ')) : '';
+      };
+      const abort = new AbortController();
+      require('../services/telegramMedia')
+        .actOnFile(
+          {
+            action: media[1],
+            media: { kind: param('kind') },
+            path: param('path'),
+            question: param('q'),
+            title: 'Test',
+          },
+          { signal: abort.signal }
+        )
+        .then(async (result) => {
+          console.log(`[media] ${JSON.stringify(result.output)}`);
+          if (!result.after) return;
+          const started = Date.now();
+          await result.after({ signal: abort.signal });
+          console.log(`[media] after finished in ${Date.now() - started}ms`);
+        })
+        .catch((e) => console.log(`[media] error: ${e.message}`));
+      return;
+    }
+    // ?announce=<text> speaks it the way a new Telegram message is.
+    const announce = /[?&]announce=([^&]+)/.exec(url || '');
+    if (announce) {
+      const text = decodeURIComponent(announce[1].replace(/\+/g, ' '));
+      console.log(`[jarvis] debug announce: ${text}`);
+      engine.announceIncoming(
+        text,
+        `[Announced new Telegram messages] ${text}`
+      );
+      return;
+    }
+    // ?voicenote=<seconds> records the microphone and encodes it the way an
+    // SOS voice message is, logs the result and plays it back.
+    const voicenote = /[?&]voicenote=(\d+)/.exec(url || '');
+    if (voicenote) {
+      (async () => {
+        const { File, Paths } = require('expo-file-system');
+        const Phone = require('../../modules/jarvis-phone');
+        const wav = new File(Paths.cache, 'debug-voicenote.wav');
+        const ogg = new File(Paths.cache, 'debug-voicenote.ogg');
+        const bytes = await engine.recordAmbient(Number(voicenote[1]) * 1000);
+        if (!bytes) return console.log('[voicenote] the microphone is off');
+        await wav.write(bytes);
+        const seconds = await Phone.encodeVoiceNote(wav.uri, ogg.uri);
+        console.log(
+          `[voicenote] ${seconds.toFixed(1)}s wav=${bytes.length}B ogg=${ogg.size}B ${ogg.uri}`
+        );
+        await require('../services/telegramMedia').playAudio(ogg.uri);
+        console.log('[voicenote] played');
+      })().catch((e) => console.log(`[voicenote] error: ${e.message}`));
+      return;
+    }
+    // ?td=<TDLib request as JSON> sends it and logs the result.
+    const td = /[?&]td=([^&]+)/.exec(url || '');
+    if (td) {
+      const request = decodeURIComponent(td[1]);
+      require('../../modules/jarvis-telegram')
+        .send(JSON.parse(request))
+        .then(
+          (result) =>
+            console.log(`[td] ${JSON.stringify(result).slice(0, 3000)}`),
+          (e) => console.log(`[td] error: ${e.message}`)
+        );
       return;
     }
     const say = /[?&]say=([^&]+)/.exec(url || '');

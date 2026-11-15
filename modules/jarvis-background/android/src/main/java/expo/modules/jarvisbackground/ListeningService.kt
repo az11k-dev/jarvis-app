@@ -1,5 +1,6 @@
 package expo.modules.jarvisbackground
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -7,6 +8,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -14,13 +16,14 @@ import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 
 private const val TAG = "JarvisListening"
 private const val CHANNEL_ID = "jarvis_listening"
 private const val NOTIFICATION_ID = 0x1A4F
 
 /**
- * Foreground service of type `microphone`. While it runs, Android lets the
+ * Foreground service of type `microphone` (and `location`). While it runs, Android lets the
  * app keep capturing audio after it leaves the screen, and keeps the process
  * (and the JS runtime that does wake-word detection) alive.
  *
@@ -50,11 +53,7 @@ class ListeningService : Service() {
         this,
         NOTIFICATION_ID,
         buildNotification(title, text, stopLabel),
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-          ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-        } else {
-          0
-        }
+        foregroundTypes()
       )
     } catch (e: Exception) {
       // e.g. started while the app wasn't visible (Android 14+ forbids that
@@ -76,6 +75,23 @@ class ListeningService : Service() {
     wakeLock?.let { if (it.isHeld) it.release() }
     wakeLock = null
     super.onDestroy()
+  }
+
+  /**
+   * `microphone`, plus `location` once the user has allowed location: an SOS
+   * raised with the phone in a pocket needs a position fix in the background.
+   */
+  private fun foregroundTypes(): Int {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return 0
+    val hasLocation = listOf(
+      Manifest.permission.ACCESS_FINE_LOCATION,
+      Manifest.permission.ACCESS_COARSE_LOCATION
+    ).any { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
+    return if (hasLocation) {
+      ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+    } else {
+      ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+    }
   }
 
   private fun acquireWakeLock() {

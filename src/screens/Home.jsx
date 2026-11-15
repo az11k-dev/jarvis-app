@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import ArcReactor, { STATUS_COLORS } from '../components/ArcReactor';
 import HudBackground from '../components/hud/HudBackground';
 import HudDock from '../components/hud/HudDock';
+import MediaViewer from '../components/MediaViewer';
 import TelegramModal, { useTelegramState } from '../components/TelegramModal';
 import Transcript from '../components/Transcript';
 import VisionScanner from '../components/VisionScanner';
@@ -63,14 +64,19 @@ export default function Home() {
 
   const color = STATUS_COLORS[status];
   const [title, defaultSubtitle] = STATUS_TEXT[status] || STATUS_TEXT.standby;
-  const subtitle =
+  const statusSubtitle =
     status === 'standby' && !voiceWakeReady(jarvis.speech)
       ? 'Tap the core — “Jarvis” will work once the model downloads'
       : defaultSubtitle;
-  const shownTitle =
-    (status === 'standby' || status === 'listening') && jarvis.userSpeaking
+  const sosCountdown = jarvis.sos === 'countdown';
+  const subtitle = sosCountdown
+    ? 'Say “cancel” or tap the core to stop it'
+    : statusSubtitle;
+  const shownTitle = sosCountdown
+    ? 'SOS in 5 seconds'
+    : (status === 'standby' || status === 'listening') && jarvis.userSpeaking
       ? 'Hearing you…'
-      : status === 'thinking' && jarvis.activity
+      : (status === 'thinking' || status === 'speaking') && jarvis.activity
         ? jarvis.activity
         : title;
 
@@ -141,6 +147,11 @@ export default function Home() {
         {downloadLine(jarvis.speech) && (
           <Text style={styles.downloadText}>{downloadLine(jarvis.speech)}</Text>
         )}
+        {jarvis.sos === 'active' && (
+          <Text style={styles.errorText}>
+            SOS MODE IS ON · say “Jarvis, cancel SOS”
+          </Text>
+        )}
         {jarvis.error && <Text style={styles.errorText}>{jarvis.error}</Text>}
       </View>
 
@@ -190,6 +201,7 @@ export default function Home() {
         onClose={() => setIsTelegramVisible(false)}
       />
       <VisionScanner />
+      <MediaViewer />
     </SafeAreaView>
   );
 }

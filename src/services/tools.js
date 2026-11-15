@@ -7,7 +7,23 @@ import {
   scheduleReminder,
 } from './notificationsService';
 import { analyzeImage } from './openai';
+import {
+  answerCall,
+  callLog,
+  endCall,
+  findContacts,
+  prepareCall,
+  readSms,
+  sendSms,
+} from './phone';
 import { scanWithCamera } from './scanner';
+import {
+  addSosContact,
+  listSosContacts,
+  removeSosContact,
+  sosStatus,
+  stopSos,
+} from './sos';
 import {
   findChat,
   markRead,
@@ -17,6 +33,7 @@ import {
   unreadChats,
 } from './telegramChats';
 import { controlAnnouncements, watchChat } from './telegramAnnounce';
+import { telegramMedia } from './telegramMedia';
 import { confirmDelete, prepareDelete, sendMessage } from './telegramSend';
 import {
   deliveryAddress,
@@ -38,6 +55,10 @@ const fn = (name, description, properties = {}, required = []) => ({
     additionalProperties: false,
   },
 });
+
+// Tools the user takes part in, or that play something: they take as long
+// as they take (every other tool is cut off after TOOL_TIMEOUT_MS).
+export const UNTIMED_TOOLS = new Set(['analyze_image', 'tg_media']);
 
 /** Tool schemas sent to the model. */
 export const TOOL_DEFINITIONS = [
@@ -102,6 +123,32 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['chat_id', 'mode', 'limit']
+  ),
+  fn(
+    'tg_media',
+    "Work with a photo, video, GIF, voice message, video message or audio from a Telegram chat: look at it and answer a question (describe), put it on the phone's screen (show), play a voice message or audio aloud (play; a video opens on screen), write down what is said in it (transcribe), or take what is shown off the screen (close).",
+    {
+      chat_id: {
+        type: 'integer',
+        description:
+          'chat_id from tg_unread_chats or tg_find_chat (0 with close).',
+      },
+      message_id: {
+        type: 'integer',
+        description:
+          'id of the message with the media (from tg_read_messages or an announcement), or 0 for the newest message in the chat that fits the action.',
+      },
+      action: {
+        type: 'string',
+        enum: ['describe', 'show', 'play', 'transcribe', 'close'],
+      },
+      question: {
+        type: 'string',
+        description:
+          'For describe: what the user wants to know about the photo or video, in their language. Empty otherwise.',
+      },
+    },
+    ['chat_id', 'message_id', 'action', 'question']
   ),
   fn(
     'tg_search_messages',
@@ -235,6 +282,131 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['alias', 'chat_id']
+  ),
+  fn(
+    'contacts_find',
+    "Look up people in the phone's contacts by name. Returns their phone numbers.",
+    {
+      name: {
+        type: 'string',
+        description: 'The name as the user said it.',
+      },
+    },
+    ['name']
+  ),
+  fn(
+    'sms_read',
+    "Read the phone's SMS, newest first: the inbox, sent messages or both, optionally from one sender or containing some words.",
+    {
+      from: {
+        type: 'string',
+        description:
+          'Only messages from/to this sender: a contact name, a phone number, or a sender name like Click or Uzum. Empty for everyone.',
+      },
+      query: {
+        type: 'string',
+        description: 'Only messages containing this text, or empty.',
+      },
+      box: {
+        type: 'string',
+        enum: ['inbox', 'sent', 'all'],
+        description: 'inbox (default), sent, or all.',
+      },
+      unread_only: {
+        type: 'boolean',
+        description: 'true for only the SMS the user has not opened yet.',
+      },
+      limit: {
+        type: 'integer',
+        description: 'How many at most (default 10, max 30).',
+      },
+    },
+    ['from', 'query', 'box', 'unread_only', 'limit']
+  ),
+  fn(
+    'sms_send',
+    "Send an SMS from the user's own number right away.",
+    {
+      to: {
+        type: 'string',
+        description: 'A contact name as the user said it, or a phone number.',
+      },
+      text: {
+        type: 'string',
+        description:
+          'The message as the user would write it: their words cleaned up, or text you wrote for them when they asked.',
+      },
+    },
+    ['to', 'text']
+  ),
+  fn(
+    'call_log',
+    "The phone's recent calls, newest first: who called, missed calls, calls with one person.",
+    {
+      kind: {
+        type: 'string',
+        enum: ['all', 'missed', 'incoming', 'outgoing'],
+      },
+      contact: {
+        type: 'string',
+        description:
+          'Only calls with this contact name or number, or empty for everyone.',
+      },
+      limit: {
+        type: 'integer',
+        description: 'How many at most (default 10, max 30).',
+      },
+    },
+    ['kind', 'contact', 'limit']
+  ),
+  fn(
+    'phone_call',
+    'Call someone on the phone. The call is placed right after you finish speaking, on the speaker unless the user asks otherwise.',
+    {
+      to: {
+        type: 'string',
+        description: 'A contact name as the user said it, or a phone number.',
+      },
+      speaker: {
+        type: 'boolean',
+        description: 'true (default) to turn the loudspeaker on.',
+      },
+    },
+    ['to', 'speaker']
+  ),
+  fn(
+    'phone_end_call',
+    'Hang up the current phone call, or decline the one that is ringing.'
+  ),
+  fn('phone_answer_call', 'Pick up the phone call that is ringing.'),
+  fn(
+    'sos',
+    'SOS mode. start: raise the alarm — after a short spoken countdown every SOS contact gets an SMS and a Telegram message with where the user is, a live location and a voice message. stop: call the alarm off and tell the contacts the user is fine. status: whether it is on.',
+    { action: { type: 'string', enum: ['start', 'stop', 'status'] } },
+    ['action']
+  ),
+  fn(
+    'sos_contacts',
+    'The people alerted in SOS mode: list them, add one (by the name the user calls them; the number comes from the phone book and their Telegram chat from the number) or remove one.',
+    {
+      action: { type: 'string', enum: ['list', 'add', 'remove'] },
+      name: {
+        type: 'string',
+        description:
+          'How the user calls the person (папа, мама, Алишер). Empty for list.',
+      },
+      phone: {
+        type: 'string',
+        description:
+          'Their phone number if the user gave it, or the one you found with contacts_find. Empty to look the name up in the phone book.',
+      },
+      chat_id: {
+        type: 'integer',
+        description:
+          'Their Telegram chat_id from tg_find_chat if the user wants a particular chat, or 0 to find it by the phone number.',
+      },
+    },
+    ['action', 'name', 'phone', 'chat_id']
   ),
   fn(
     'tezkor_search_food',
@@ -390,7 +562,7 @@ async function pickFromGallery() {
 }
 
 /**
- * Executes a tool call. Returns `{ output, after?, endConversation?, resetConversation? }`.
+ * Executes a tool call. Returns `{ output, after?, keepOpen?, sos?, endConversation?, resetConversation? }`.
  * `after` runs once JARVIS has finished speaking (used for anything that
  * switches to another app, so the reply isn't cut off).
  */
@@ -485,6 +657,97 @@ export async function runTool(name, args, { signal, turn } = {}) {
           limit: args.limit,
         }),
       };
+
+    case 'tg_media':
+      return telegramMedia(
+        {
+          chatId: args.chat_id,
+          messageId: args.message_id,
+          action: args.action,
+          question: args.question,
+        },
+        { signal }
+      );
+
+    case 'contacts_find':
+      return { output: await findContacts(String(args.name || '')) };
+
+    case 'sms_read':
+      return {
+        output: await readSms({
+          from: args.from,
+          query: args.query,
+          box: args.box,
+          limit: args.limit,
+          unreadOnly: args.unread_only === true || args.unread_only === 'true',
+        }),
+      };
+
+    case 'sms_send':
+      return { output: await sendSms({ to: args.to, text: args.text }) };
+
+    case 'call_log':
+      return {
+        output: await callLog({
+          kind: args.kind,
+          limit: args.limit,
+          contact: args.contact,
+        }),
+      };
+
+    case 'phone_call': {
+      const { output, dial } = await prepareCall({
+        to: args.to,
+        speaker: args.speaker,
+      });
+      return { output, after: dial };
+    }
+
+    case 'phone_end_call':
+      return { output: await endCall() };
+
+    case 'phone_answer_call':
+      // The call takes the microphone: don't keep listening for a command.
+      return { output: await answerCall(), endConversation: true };
+
+    case 'sos':
+      if (args.action === 'start') {
+        const contacts = await listSosContacts();
+        if (!contacts.length) {
+          return {
+            output: {
+              error:
+                'No SOS contacts yet. Ask who to alert and add them with sos_contacts.',
+            },
+          };
+        }
+        return {
+          output: {
+            status: 'starting',
+            note: 'JARVIS announces the countdown itself; say nothing.',
+          },
+          sos: 'start',
+        };
+      }
+      if (args.action === 'stop') return { output: await stopSos() };
+      return {
+        output: { ...sosStatus(), contacts: await listSosContacts() },
+      };
+
+    case 'sos_contacts':
+      if (args.action === 'add') {
+        return {
+          output: await addSosContact({
+            name: args.name,
+            phone: args.phone,
+            chatId: args.chat_id,
+          }),
+        };
+      }
+      if (args.action === 'remove') {
+        return { output: await removeSosContact(args.name) };
+      }
+      return { output: { contacts: await listSosContacts() } };
 
     case 'tg_search_messages':
       return {

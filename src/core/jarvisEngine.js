@@ -355,9 +355,16 @@ export class JarvisEngine {
     try {
       // The microphone can only be opened while the app is visible; a
       // background service then keeps it open after the user leaves.
-      if (!this.stream.isStreaming && this.appActive) await this.stream.start();
+      if (!this.stream.isStreaming && this.appActive) {
+        await this.stream.start();
+        // Fresh audio: forget any half-heard phrase. Not when the stream
+        // kept running (e.g. the app just came back to the foreground):
+        // that would drop what the user is saying and leave JARVIS stuck
+        // in "hearing you" with no end of speech ever reported.
+        this.vad.reset();
+        this.set({ userSpeaking: false });
+      }
       this.micFailed = false;
-      this.vad.reset();
       // A turn may have moved on while the microphone was opening; putting
       // the old status back would leave JARVIS stuck in it.
       this.set({

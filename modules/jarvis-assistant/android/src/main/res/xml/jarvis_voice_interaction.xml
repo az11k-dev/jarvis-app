@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Makes JARVIS selectable as the phone's digital assistant (Settings →
+     Default apps → Digital assistant app), like Google/Gemini or ChatGPT. -->
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+  android:sessionService="expo.modules.jarvisassistant.JarvisSessionService"
+  android:recognitionService="expo.modules.jarvisassistant.JarvisRecognitionService"
+  android:supportsAssist="true"
+  android:supportsLaunchVoiceAssistFromKeyguard="true" />

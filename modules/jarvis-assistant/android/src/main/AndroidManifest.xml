@@ -1,0 +1,38 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- To find the device's own speech recognizer, see JarvisRecognitionService. -->
+  <queries>
+    <intent>
+      <action android:name="android.speech.RecognitionService" />
+    </intent>
+  </queries>
+
+  <application>
+    <service
+      android:name="expo.modules.jarvisassistant.JarvisVoiceInteractionService"
+      android:label="JARVIS"
+      android:permission="android.permission.BIND_VOICE_INTERACTION"
+      android:exported="true">
+      <meta-data
+        android:name="android.voice_interaction"
+        android:resource="@xml/jarvis_voice_interaction" />
+      <intent-filter>
+        <action android:name="android.service.voice.VoiceInteractionService" />
+      </intent-filter>
+    </service>
+
+    <service
+      android:name="expo.modules.jarvisassistant.JarvisSessionService"
+      android:permission="android.permission.BIND_VOICE_INTERACTION"
+      android:exported="true" />
+
+    <service
+      android:name="expo.modules.jarvisassistant.JarvisRecognitionService"
+      android:label="JARVIS"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.speech.RecognitionService" />
+        <category android:name="android.intent.category.DEFAULT" />
+      </intent-filter>
+    </service>
+  </application>
+</manifest>

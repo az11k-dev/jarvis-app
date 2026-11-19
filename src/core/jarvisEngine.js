@@ -452,6 +452,20 @@ export class JarvisEngine {
     }
   }
 
+  /**
+   * Invoked as the phone's assistant (side/home button hold): always ends up
+   * listening for a command, unlike tap(), which toggles.
+   */
+  async summon() {
+    if (this.sosPending) return;
+    if (this.status === 'off') await this.setMicEnabled(true);
+    if (this.status === 'off') return; // the microphone couldn't start
+    if (this.busy || this.status === 'thinking' || this.status === 'speaking') {
+      this.cancelTurn();
+    }
+    this.enterListening();
+  }
+
   async setMicEnabled(enabled) {
     await this.updateSettings({ micEnabled: enabled });
     if (enabled) {

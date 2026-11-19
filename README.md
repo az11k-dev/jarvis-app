@@ -49,7 +49,13 @@ On Android JARVIS keeps listening after you leave the app or turn the screen off
 `microphone` foreground service (`modules/jarvis-background`) shows an ongoing
 notification, and tapping **Turn off** there turns the mic off. Some vendors
 (Samsung, Xiaomi…) may still kill background apps; set JARVIS's battery usage to
-_Unrestricted_ if it stops listening after a while.
+_Unrestricted_ if it stops listening after a while. Swiping JARVIS out of recent apps
+only closes the screen; it keeps listening until you tap **Turn off**.
+
+JARVIS can also be the phone's **digital assistant**, like Google/Gemini or ChatGPT:
+pick it in _Settings → Apps → Default apps → Digital assistant app_. Holding the
+home button (or the assistant gesture / side key, if set to the assistant) then opens
+JARVIS ready for a command, no wake word needed (`modules/jarvis-assistant`).
 
 All tuning (thresholds, command window, models, voices, Telegram limits) lives in `src/config/jarvis.js`.
 

@@ -4,6 +4,7 @@ import * as Notifications from 'expo-notifications';
 import { AUDIO_FORMAT } from '../config/jarvis';
 import { JarvisEngine } from './jarvisEngine';
 import { startAnnouncer } from '../services/telegramAnnounce';
+import * as Assistant from '../../modules/jarvis-assistant';
 import * as Background from '../../modules/jarvis-background';
 
 /**
@@ -55,7 +56,13 @@ export function getJarvisRuntime() {
   if (__DEV__) require('../dev/debugBridge').attachDebugBridge(engine);
 
   engine.attachStream(stream);
-  engine.boot();
+  const booted = engine.boot();
+
+  // Invoked as the phone's digital assistant; if that launched the app, wait
+  // until the engine (and its microphone) is up.
+  Assistant.addAssistListener(() =>
+    booted.then(() => engine.summon()).catch(() => {})
+  );
 
   runtime = { engine, stream };
   return runtime;

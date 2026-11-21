@@ -9,7 +9,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test",
-    "prepare": "husky"
+    "prepare": "husky",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@expo-google-fonts/jura": "^0.4.2",
@@ -41,6 +42,7 @@
     "eslint-config-expo": "~58.0.4",
     "husky": "^9.1.7",
     "lint-staged": "^17.0.8",
+    "patch-package": "^8.0.1",
     "prettier": "^3.9.4"
   },
   "private": true,
@@ -52,5 +54,12 @@
     "*.{json,md,css}": [
       "prettier --write"
     ]
+  },
+  "expo": {
+    "autolinking": {
+      "buildFromSource": [
+        "expo-audio"
+      ]
+    }
   }
 }

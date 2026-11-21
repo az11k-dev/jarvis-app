@@ -1,7 +1,7 @@
 import { AppState } from 'react-native';
 import { AudioModule } from 'expo-audio';
 import * as Notifications from 'expo-notifications';
-import { AUDIO_FORMAT } from '../config/jarvis';
+import { AUDIO_FORMAT, MIC_PROCESSING } from '../config/jarvis';
 import { JarvisEngine } from './jarvisEngine';
 import { startAnnouncer } from '../services/telegramAnnounce';
 import * as Assistant from '../../modules/jarvis-assistant';
@@ -32,6 +32,8 @@ export function getJarvisRuntime() {
     sampleRate: AUDIO_FORMAT.sampleRate,
     channels: AUDIO_FORMAT.channels,
     encoding: AUDIO_FORMAT.encoding,
+    source: MIC_PROCESSING.source,
+    noiseSuppression: MIC_PROCESSING.noiseSuppression,
   });
   stream.addListener('audioStreamBuffer', engine.handleBuffer);
 

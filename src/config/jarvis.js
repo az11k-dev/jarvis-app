@@ -41,6 +41,19 @@ export const AUDIO_FORMAT = {
   encoding: 'int16',
 };
 
+// Noise reduction for the microphone (Android; expo-audio is patched to
+// accept these, see patches/expo-audio+*.patch). The plain 'mic' source is
+// raw audio, so in a crowd the speech models heard everyone. The
+// 'voice_communication' source uses the phone's call pipeline: both
+// microphones focus on the person holding the phone, and background voices
+// and noise are suppressed. noiseSuppression adds Android's
+// NoiseSuppressor and echo canceller effects where the phone has them; the
+// echo canceller also keeps JARVIS from hearing his own voice.
+export const MIC_PROCESSING = {
+  source: 'voice_communication', // or 'voice_recognition', 'mic' (raw)
+  noiseSuppression: true,
+};
+
 // Voice activity detection (energy based, adaptive to room noise).
 export const VAD = {
   // Speech must be this many dB above the measured noise floor...

@@ -1,0 +1,136 @@
+diff --git a/node_modules/expo-audio/android/.gradle/9.2.0/checksums/checksums.lock b/node_modules/expo-audio/android/.gradle/9.2.0/checksums/checksums.lock
+new file mode 100644
+index 0000000..e407d81
+Binary files /dev/null and b/node_modules/expo-audio/android/.gradle/9.2.0/checksums/checksums.lock differ
+diff --git a/node_modules/expo-audio/android/.gradle/9.2.0/fileChanges/last-build.bin b/node_modules/expo-audio/android/.gradle/9.2.0/fileChanges/last-build.bin
+new file mode 100644
+index 0000000..f76dd23
+Binary files /dev/null and b/node_modules/expo-audio/android/.gradle/9.2.0/fileChanges/last-build.bin differ
+diff --git a/node_modules/expo-audio/android/.gradle/9.2.0/fileHashes/fileHashes.bin b/node_modules/expo-audio/android/.gradle/9.2.0/fileHashes/fileHashes.bin
+new file mode 100644
+index 0000000..b386974
+Binary files /dev/null and b/node_modules/expo-audio/android/.gradle/9.2.0/fileHashes/fileHashes.bin differ
+diff --git a/node_modules/expo-audio/android/.gradle/9.2.0/fileHashes/fileHashes.lock b/node_modules/expo-audio/android/.gradle/9.2.0/fileHashes/fileHashes.lock
+new file mode 100644
+index 0000000..d0c7384
+Binary files /dev/null and b/node_modules/expo-audio/android/.gradle/9.2.0/fileHashes/fileHashes.lock differ
+diff --git a/node_modules/expo-audio/android/.gradle/9.2.0/gc.properties b/node_modules/expo-audio/android/.gradle/9.2.0/gc.properties
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/expo-audio/android/.gradle/buildOutputCleanup/buildOutputCleanup.lock b/node_modules/expo-audio/android/.gradle/buildOutputCleanup/buildOutputCleanup.lock
+new file mode 100644
+index 0000000..9009e17
+Binary files /dev/null and b/node_modules/expo-audio/android/.gradle/buildOutputCleanup/buildOutputCleanup.lock differ
+diff --git a/node_modules/expo-audio/android/.gradle/buildOutputCleanup/cache.properties b/node_modules/expo-audio/android/.gradle/buildOutputCleanup/cache.properties
+new file mode 100644
+index 0000000..61f3cab
+--- /dev/null
++++ b/node_modules/expo-audio/android/.gradle/buildOutputCleanup/cache.properties
+@@ -0,0 +1,2 @@
++#Sun Nov 08 20:43:31 UZT 2026
++gradle.version=9.2.0
+diff --git a/node_modules/expo-audio/android/.gradle/vcs-1/gc.properties b/node_modules/expo-audio/android/.gradle/vcs-1/gc.properties
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt
+index b6b3b73..a21fd73 100644
+--- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioRecords.kt
+@@ -151,6 +151,13 @@ class AudioStreamOptions : Record {
+   @Field var channels: Int = 1
+ 
+   @Field var encoding: AudioStreamEncoding = AudioStreamEncoding.FLOAT32
++
++  // Which microphone pipeline to read from. VOICE_COMMUNICATION / VOICE_RECOGNITION
++  // get the phone's voice processing (multi-mic beamforming, noise reduction).
++  @Field var source: RecordingSource = RecordingSource.MIC
++
++  // Attach the platform NoiseSuppressor and AcousticEchoCanceler effects when available.
++  @Field var noiseSuppression: Boolean = false
+ }
+ 
+ enum class RecordingSource(val value: String) : Enumerable {
+diff --git a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt
+index 99c5a79..8e58515 100644
+--- a/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt
++++ b/node_modules/expo-audio/android/src/main/java/expo/modules/audio/AudioStream.kt
+@@ -3,6 +3,9 @@ package expo.modules.audio
+ import android.Manifest
+ import android.media.AudioFormat
+ import android.media.AudioRecord
++import android.media.audiofx.AcousticEchoCanceler
++import android.media.audiofx.AudioEffect
++import android.media.audiofx.NoiseSuppressor
+ import android.media.MediaRecorder
+ import androidx.annotation.RequiresPermission
+ import expo.modules.kotlin.AppContext
+@@ -45,6 +48,7 @@ class AudioStream(
+   val id: String = java.util.UUID.randomUUID().toString()
+ 
+   private var audioRecord: AudioRecord? = null
++  private val effects = mutableListOf<AudioEffect>()
+   private var captureJob: Job? = null
+   private val coroutineScope = CoroutineScope(Dispatchers.IO)
+ 
+@@ -72,6 +76,7 @@ class AudioStream(
+     try {
+       recorder.startRecording()
+     } catch (e: IllegalStateException) {
++      releaseEffects()
+       recorder.release()
+       throw AudioStreamInitializationException(
+         "Failed to start the audio stream. The microphone is likely held by another app or by the system"
+@@ -96,6 +101,7 @@ class AudioStream(
+     captureJob?.cancel()
+     captureJob = null
+     audioRecord?.stop()
++    releaseEffects()
+     audioRecord?.release()
+     audioRecord = null
+     emitStatus()
+@@ -210,7 +216,7 @@ class AudioStream(
+   @RequiresPermission(Manifest.permission.RECORD_AUDIO)
+   private fun createAudioRecord(config: ResolvedAudioConfig): AudioRecord {
+     val recorder = AudioRecord(
+-      MediaRecorder.AudioSource.MIC,
++      options.source.toAudioSource(),
+       config.sampleRate,
+       config.channelConfig,
+       config.audioEncoding,
+@@ -226,9 +232,36 @@ class AudioStream(
+       )
+     }
+ 
++    if (options.noiseSuppression) {
++      attachEffects(recorder.audioSessionId)
++    }
++
+     return recorder
+   }
+ 
++  private fun attachEffects(sessionId: Int) {
++    if (NoiseSuppressor.isAvailable()) {
++      try {
++        NoiseSuppressor.create(sessionId)?.let { it.enabled = true; effects.add(it) }
++      } catch (e: Exception) {
++        appContext?.jsLogger?.warn("AudioStream: NoiseSuppressor unavailable", e)
++      }
++    }
++    if (AcousticEchoCanceler.isAvailable()) {
++      try {
++        AcousticEchoCanceler.create(sessionId)?.let { it.enabled = true; effects.add(it) }
++      } catch (e: Exception) {
++        appContext?.jsLogger?.warn("AudioStream: AcousticEchoCanceler unavailable", e)
++      }
++    }
++    android.util.Log.i("AudioStream", "source=${options.source.value} effects=${effects.map { it.javaClass.simpleName }}")
++  }
++
++  private fun releaseEffects() {
++    effects.forEach { runCatching { it.release() } }
++    effects.clear()
++  }
++
+   private fun startCaptureLoop(recorder: AudioRecord, config: ResolvedAudioConfig) {
+     captureJob = coroutineScope.launch {
+       val readSizeBytes = config.readSize

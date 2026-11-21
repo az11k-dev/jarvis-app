@@ -58,8 +58,9 @@ export const MIC_PROCESSING = {
 export const VAD = {
   // Speech must be this many dB above the measured noise floor...
   thresholdAboveFloorDb: 10,
-  // ...and never quieter than this absolute level.
-  minThresholdDb: -50,
+  // ...and never quieter than this absolute level. -50 dropped "Jarvis"
+  // said across a quiet room (it arrived at -47..-56 dB over a -75 floor).
+  minThresholdDb: -58,
   // Consecutive loud audio needed to count as speech (filters clicks/taps).
   speechStartMs: 200,
   // Silence after speech that ends the utterance.
@@ -94,12 +95,13 @@ export const CONVERSATION_QUESTION_WINDOW_MS = 15000;
 // Spoken forms of the wake word as the on-device recognizer spells them,
 // collected from real tests: it blurs or drops the "в" (Джарес, Джарыз,
 // Джарвейс), doubles the "р" (Джаррез, Джаррес), mixes alphabets (Джарvс),
-// hears "б" (Джабись), "чарл" (Чарлись), "о" (Джорис) or drops the "Дж"
-// (Арлис), and in English mangles the name (Jarres, Jovis, Joraus). A vowel
-// or "в" must follow the "р" so ordinary words (дерзкий, jersey, jars) don't
-// wake JARVIS.
+// hears "б" (Джабись), "чарл" (Чарлись), "о" (Джорис, Джоррис) or drops the "Дж"
+// (Арлис), and in English mangles the name (Jarres, Jovis, Joraus). It also
+// hears "тр" (Джатрис), "рб" (Джербись), "рл" (Джарли), drops the "р"
+// (Джаэсь) or the "Д" and "в" (Жарысь). A vowel or "в" must follow the "р"
+// so ordinary words (дерзкий, jersey, jars) don't wake JARVIS.
 export const WAKE_WORD_PATTERN =
-  /^(дж?[аеэ][рp]{1,2}(?:[вv][аеиэыя]?|[аеиэыя])й?[сзш]\S*|дж[аеэ]б[иы]с\S*|ч[аеэ]рл[иеыя]с\S*|ж[аеэ]рв[иеэы][сз]\S*|джор[иеэы][сз]\S*|арл[иеэы]с\S*|j[aeo](?:rr?|rv|v)[aeiouy]{1,2}[sz]\S{0,2}|javis|jarvi|jarvice)$/i;
+  /^(дж?[аеэ][рp]{1,2}(?:[вv][аеиэыя]?|[аеиэыя])й?[сзш]\S*|дж[аеэ]р?б[иы]с\S*|дж[аеэ]тр[иеэы]с\S*|дж[аеэ]рл[иеыя]\S*|дж[аеэ][аеиэы][сз]\S*|ч[аеэ]рл[иеыя]с\S*|ж[аеэ]рв?[иеэы][сз]\S*|джорр?[иеэы][сз]\S*|арл[иеэы]с\S*|j[aeo](?:rr?|rv|v)[aeiouy]{1,2}[sz]\S{0,2}|javis|jarvi|jarvice)$/i;
 
 // Words people put around the wake word that don't make a command on their own.
 export const WAKE_FILLERS = new Set([
@@ -115,6 +117,7 @@ export const WAKE_FILLERS = new Set([
   'yo',
   'а',
   'о',
+  'ах',
 ]);
 
 // Context sent with every transcription request. It biases recognition

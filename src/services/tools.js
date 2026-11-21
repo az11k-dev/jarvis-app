@@ -16,6 +16,13 @@ import {
   readSms,
   sendSms,
 } from './phone';
+import {
+  getPlace,
+  listPlaces,
+  removePlace,
+  savePlace,
+  whereAmI,
+} from './places';
 import { scanWithCamera } from './scanner';
 import {
   addSosContact,
@@ -41,6 +48,7 @@ import {
   openTezkor,
   searchFood,
   setAddress,
+  setAddressToPlace,
   vendorMenu,
 } from './tezkor';
 
@@ -459,16 +467,55 @@ export const TOOL_DEFINITIONS = [
     ['vendor_id', 'query']
   ),
   fn(
-    'tezkor_set_address',
-    'Set the delivery address used for Uzum Tezkor searches. Saved on the phone for next time. Fails, saving nothing, when Tezkor does not deliver there.',
+    'places',
+    "The user's saved places (home, work, or any name they give): list them, save one (from an address, or where the phone is now) or remove one. Saved places are used by name for food delivery and, later, taxis. Use when the user says «запомни мой домашний адрес», «я на работе, сохрани это место», «какие у меня адреса?».",
     {
+      action: { type: 'string', enum: ['list', 'save', 'remove'] },
+      name: {
+        type: 'string',
+        description:
+          'What the user calls the place: home, work, or their own name for it (дача, мама, спортзал). Empty for list.',
+      },
       address: {
         type: 'string',
         description:
-          'Street and house number with the city, e.g. «Ташкент, улица Амира Темура, 1».',
+          'For save: street and house number with the city, e.g. «Ташкент, улица Амира Темура, 1». Empty when here is true.',
+      },
+      here: {
+        type: 'boolean',
+        description:
+          "For save: true to save the phone's current location («я дома, запомни»), false to use address.",
+      },
+      note: {
+        type: 'string',
+        description:
+          'For save: details a courier or driver needs (подъезд, этаж, квартира, ориентир), or empty.',
       },
     },
-    ['address']
+    ['action', 'name', 'address', 'here', 'note']
+  ),
+  fn(
+    'where_am_i',
+    'Where the phone is right now (GPS): the address, a map link, and the nearest saved place with its distance. Use for «где я?», «где я сейчас нахожусь?», «какой это адрес?», «я далеко от дома?».',
+    {},
+    []
+  ),
+  fn(
+    'tezkor_set_address',
+    'Set the delivery address used for Uzum Tezkor searches: a saved place («закажи домой», «доставка на работу») or a new address. Kept on the phone for next time. A new address fails, saving nothing, when Tezkor does not deliver there.',
+    {
+      place: {
+        type: 'string',
+        description:
+          'Name of a saved place (home, work, or one from places), or empty to use address.',
+      },
+      address: {
+        type: 'string',
+        description:
+          'Street and house number with the city, e.g. «Ташкент, улица Амира Темура, 1». Empty when place is given.',
+      },
+    },
+    ['place', 'address']
   ),
   fn(
     'open_tezkor',
@@ -813,8 +860,43 @@ export async function runTool(name, args, { signal, turn } = {}) {
         output: await vendorMenu(args.vendor_id, args.query, { signal }),
       };
 
-    case 'tezkor_set_address':
+    case 'places':
+      if (args.action === 'save') {
+        return {
+          output: await savePlace(
+            {
+              name: args.name,
+              address: args.address,
+              here: args.here === true || args.here === 'true',
+              note: args.note,
+            },
+            { signal }
+          ),
+        };
+      }
+      if (args.action === 'remove') {
+        return { output: await removePlace(args.name) };
+      }
+      return { output: { places: await listPlaces() } };
+
+    case 'where_am_i':
+      return { output: await whereAmI() };
+
+    case 'tezkor_set_address': {
+      if (String(args.place || '').trim()) {
+        const place = await getPlace(args.place);
+        if (!place) {
+          return {
+            output: {
+              error: `No saved place «${args.place}». Ask for the address, and offer to save it with places.`,
+              places: await listPlaces(),
+            },
+          };
+        }
+        return { output: await setAddressToPlace(place) };
+      }
       return { output: await setAddress(args.address, { signal }) };
+    }
 
     case 'open_tezkor':
       return {

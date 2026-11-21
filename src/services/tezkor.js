@@ -160,27 +160,41 @@ async function loadAddress() {
 }
 
 /**
+ * Tezkor's geocoder hits for `query` (each with lat, long, title and
+ * whether Tezkor delivers there), or [] when the place is not found.
+ */
+export async function geocode(query, { signal } = {}) {
+  try {
+    const res = await fetchJson(
+      '/api/v1/geo/addresses',
+      { params: { query, limit: 5 } },
+      { signal }
+    );
+    return Array.isArray(res?.data) ? res.data : [];
+  } catch (e) {
+    // The geocoder answers an unknown place with an error, not an empty list.
+    if (e instanceof TezkorError && /geocode|address/i.test(e.message)) {
+      return [];
+    }
+    throw e;
+  }
+}
+
+async function saveAddress(a) {
+  address = a;
+  await addressFile().write(JSON.stringify(address));
+}
+
+/**
  * Finds `query` on the map and saves it as the delivery address. Places
  * Tezkor does not deliver to are not saved.
  */
 export async function setAddress(query, { signal } = {}) {
   const text = String(query || '').trim();
   if (!text) return { error: 'Say the address.' };
-  let res;
-  try {
-    res = await fetchJson(
-      '/api/v1/geo/addresses',
-      { params: { query: text, limit: 5 } },
-      { signal }
-    );
-  } catch (e) {
-    // The geocoder answers an unknown place with an error, not an empty list.
-    if (e instanceof TezkorError && /geocode|address/i.test(e.message)) {
-      return { error: 'Address not found.', query: text };
-    }
-    throw e;
-  }
-  const { chosen, others, outOfZone } = pickAddress(res?.data);
+  const { chosen, others, outOfZone } = pickAddress(
+    await geocode(text, { signal })
+  );
   if (!chosen) {
     return outOfZone
       ? {
@@ -189,8 +203,7 @@ export async function setAddress(query, { signal } = {}) {
         }
       : { error: 'Address not found.', query: text };
   }
-  address = chosen;
-  await addressFile().write(JSON.stringify(address));
+  await saveAddress(chosen);
   return {
     status: 'saved',
     address: address.full_title,
@@ -201,11 +214,31 @@ export async function setAddress(query, { signal } = {}) {
   };
 }
 
+/** Delivers to a saved place (see places.js) from now on. */
+export async function setAddressToPlace(place) {
+  await saveAddress({
+    title: place.title,
+    full_title: place.full_title,
+    lat: place.lat,
+    long: place.long,
+    accuracy: place.accuracy,
+    place: place.key,
+  });
+  return {
+    status: 'saved',
+    place: place.key,
+    address: place.full_title,
+    ...(place.tezkor_delivers === false
+      ? { warning: 'Tezkor may not deliver to this place.' }
+      : {}),
+  };
+}
+
 async function requireAddress() {
   const a = await loadAddress();
   if (!a) {
     throw new TezkorError(
-      'No delivery address set. Ask the user for their address (street, house, city) and call tezkor_set_address.'
+      'No delivery address set. If the user has saved places (places_list), deliver to home or the place they name with tezkor_set_address place; otherwise ask for their address (street, house, city).'
     );
   }
   return a;

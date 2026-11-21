@@ -151,6 +151,8 @@ const TOOL_ACTIVITY = {
   phone_answer_call: 'Answering…',
   sos: 'SOS…',
   sos_contacts: 'Updating SOS contacts…',
+  places: 'Checking saved places…',
+  where_am_i: 'Finding your location…',
   reset_conversation: 'Clearing the chat…',
 };
 

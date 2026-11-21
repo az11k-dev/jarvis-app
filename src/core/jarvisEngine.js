@@ -153,6 +153,7 @@ const TOOL_ACTIVITY = {
   sos_contacts: 'Updating SOS contacts…',
   places: 'Checking saved places…',
   where_am_i: 'Finding your location…',
+  order_taxi: 'Preparing the taxi…',
   reset_conversation: 'Clearing the chat…',
 };
 

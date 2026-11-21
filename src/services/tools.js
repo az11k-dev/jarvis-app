@@ -23,6 +23,7 @@ import {
   savePlace,
   whereAmI,
 } from './places';
+import { openTaxi, prepareTaxi } from './taxi';
 import { scanWithCamera } from './scanner';
 import {
   addSosContact,
@@ -468,7 +469,7 @@ export const TOOL_DEFINITIONS = [
   ),
   fn(
     'places',
-    "The user's saved places (home, work, or any name they give): list them, save one (from an address, or where the phone is now) or remove one. Saved places are used by name for food delivery and, later, taxis. Use when the user says «запомни мой домашний адрес», «я на работе, сохрани это место», «какие у меня адреса?».",
+    "The user's saved places (home, work, or any name they give): list them, save one (from an address, or where the phone is now) or remove one. Saved places are used by name for food delivery and taxis. Use when the user says «запомни мой домашний адрес», «я на работе, сохрани это место», «какие у меня адреса?».",
     {
       action: { type: 'string', enum: ['list', 'save', 'remove'] },
       name: {
@@ -533,6 +534,29 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['vendor_id', 'product_id']
+  ),
+  fn(
+    'order_taxi',
+    'Open Yandex Go or WB Taxi with the route filled in (prices for each class shown), so the user only taps the order button. Use for «вызови такси домой», «закажи Яндекс на работу», «такси до аэропорта через WB», "get me a cab to the office". JARVIS cannot press the order button itself: that charges the user.',
+    {
+      service: {
+        type: 'string',
+        enum: ['yandex', 'wb', ''],
+        description:
+          'yandex for Yandex Go / Яндекс Такси, wb for WB Taxi / Wildberries, or empty when the user did not name one (the one used last time, Yandex at first).',
+      },
+      to: {
+        type: 'string',
+        description:
+          'Where to go: a saved place name (home, work, or one from places) or an address or landmark with the city («Ташкент, аэропорт», «Ташкент, улица Амира Темура, 1»). Empty if the user did not say; they pick it in the app.',
+      },
+      from: {
+        type: 'string',
+        description:
+          'Pickup: a saved place name or an address, or empty to start where the phone is now (the usual case).',
+      },
+    },
+    ['service', 'to', 'from']
   ),
   fn(
     'open_youtube',
@@ -910,6 +934,18 @@ export async function runTool(name, args, { signal, turn } = {}) {
             productId: args.product_id,
           }),
       };
+
+    case 'order_taxi': {
+      const ride = await prepareTaxi(
+        { service: args.service, from: args.from, to: args.to },
+        { signal }
+      );
+      if (!ride.url) return { output: ride.output };
+      return {
+        output: ride.output,
+        after: () => openTaxi(ride.url, ride.service),
+      };
+    }
 
     case 'end_conversation':
       return { output: { status: 'standing_by' }, endConversation: true };

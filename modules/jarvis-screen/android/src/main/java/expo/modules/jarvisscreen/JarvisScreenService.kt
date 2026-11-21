@@ -3,18 +3,14 @@ package expo.modules.jarvisscreen
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.content.Intent
-import android.graphics.Color
 import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
-import android.util.TypedValue
-import android.view.Gravity
-import android.view.View
 import android.view.WindowManager
-import android.widget.TextView
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.lang.ref.WeakReference
@@ -164,26 +160,25 @@ class JarvisScreenService : AccessibilityService() {
   // ── the cover: JARVIS's screen over the taxi app while it works there ──
 
   private val main = Handler(Looper.getMainLooper())
-  private var cover: TextView? = null
+  private var cover: JarvisCoverView? = null
 
   /**
-   * Shows (or updates) a full-screen JARVIS card with `text` above every
-   * app. It takes no touches, so taps and swipes still reach the taxi app
-   * underneath, and its nodes stay readable; the user just doesn't see it.
+   * Shows (or updates) JARVIS's cover screen above every app: `title` is
+   * the status line, `subtitle` the app being worked in. It takes no
+   * touches, so taps and swipes still reach the taxi app underneath, and
+   * the app's nodes stay readable. `alpha` caps the backdrop's opacity.
    */
-  fun cover(text: String, alpha: Int = 0xF2) = main.post {
+  fun cover(title: String, subtitle: String, alpha: Int) = main.post {
     cover?.let {
-      it.text = text
-      it.setBackgroundColor(Color.argb(alpha, 5, 8, 13))
+      it.title = title
+      it.subtitle = subtitle
+      it.backdropAlpha = alpha
       return@post
     }
-    val view = TextView(this).apply {
-      this.text = text
-      setTextColor(Color.parseColor("#7FDBFF"))
-      setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
-      gravity = Gravity.CENTER
-      setBackgroundColor(Color.argb(alpha, 5, 8, 13))
-      importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    val view = JarvisCoverView(this).apply {
+      this.title = title
+      this.subtitle = subtitle
+      backdropAlpha = alpha
     }
     val params = WindowManager.LayoutParams(
       WindowManager.LayoutParams.MATCH_PARENT,
@@ -192,9 +187,22 @@ class JarvisScreenService : AccessibilityService() {
       WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
         WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
         WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
-        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+        WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
       PixelFormat.TRANSLUCENT
     )
+    // Reach under the status and navigation bars.
+    if (Build.VERSION.SDK_INT >= 30) params.fitInsetsTypes = 0
+    if (Build.VERSION.SDK_INT >= 28) {
+      params.layoutInDisplayCutoutMode =
+        WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+    }
+    // Frosted glass: the taxi app turns into a soft glow behind the HUD
+    // while staying "visible" enough to keep loading.
+    if (Build.VERSION.SDK_INT >= 31) {
+      params.flags = params.flags or WindowManager.LayoutParams.FLAG_BLUR_BEHIND
+      params.blurBehindRadius = (40 * resources.displayMetrics.density).toInt()
+    }
     try {
       (getSystemService(WINDOW_SERVICE) as WindowManager).addView(view, params)
       cover = view
@@ -203,13 +211,18 @@ class JarvisScreenService : AccessibilityService() {
     }
   }
 
+  /** Adds a line to the cover's task log (no-op without a cover). */
+  fun coverLog(line: String) = main.post { cover?.addLog(line) }
+
   fun uncover() = main.post {
     val view = cover ?: return@post
     cover = null
-    try {
-      (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view)
-    } catch (e: Exception) {
-      Log.w(TAG, "uncover failed", e)
+    view.dismiss {
+      try {
+        (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view)
+      } catch (e: Exception) {
+        Log.w(TAG, "uncover failed", e)
+      }
     }
   }
 

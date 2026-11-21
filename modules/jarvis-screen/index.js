@@ -54,10 +54,16 @@ export async function sleep(ms) {
 }
 
 /**
- * Covers the screen with a JARVIS card showing `text` (or updates it). It
- * takes no touches: taps and reads still reach the taxi app underneath.
+ * Covers the screen with JARVIS's HUD — `title` as the status line,
+ * `subtitle` (the app) under it — or updates it. It takes no touches: taps
+ * and reads still reach the taxi app underneath. `alpha` (0–255) caps the
+ * backdrop's opacity; above ~0xCC the taxi apps stop loading behind it.
  */
-export const cover = (text, alpha) => !!Native?.cover?.(text, alpha ?? null);
+export const cover = (title, subtitle, alpha) =>
+  !!Native?.cover?.(title, subtitle ?? null, alpha ?? null);
+
+/** Adds a step to the cover's task log. */
+export const coverLog = (line) => !!Native?.coverLog?.(line);
 
 export const uncover = () => !!Native?.uncover?.();
 

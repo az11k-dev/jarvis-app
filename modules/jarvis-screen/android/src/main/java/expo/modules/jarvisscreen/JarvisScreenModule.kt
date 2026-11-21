@@ -30,9 +30,11 @@ class JarvisScreenModule : Module() {
       Handler(Looper.getMainLooper()).postDelayed({ promise.resolve(null) }, ms.toLong())
     }
 
-    Function("cover") { text: String, alpha: Int? ->
-      JarvisScreenService.get()?.cover(text, alpha ?: 0xF2) != null
+    Function("cover") { title: String, subtitle: String?, alpha: Int? ->
+      JarvisScreenService.get()?.cover(title, subtitle ?: "", alpha ?: 0xCC) != null
     }
+
+    Function("coverLog") { line: String -> JarvisScreenService.get()?.coverLog(line); true }
 
     Function("uncover") { JarvisScreenService.get()?.uncover(); true }
 

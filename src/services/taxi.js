@@ -164,7 +164,11 @@ export async function openTaxi(url, service) {
 
 // Native wait: JS timers can stall while the taxi app is in front.
 const sleep = (ms) => Screen.sleep(ms);
-const COVER_ALPHA = 0xcc;
+// Behind a fully opaque cover the taxi apps stop loading (see behindCover).
+const COVER_ALPHA = 0xff;
+/** A line in the cover's task log. */
+const step = (line) => Screen.coverLog(line);
+const sum = (n) => `${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} SUM`;
 const log = (...a) => __DEV__ && console.log('[taxi]', ...a);
 
 /**
@@ -270,23 +274,28 @@ async function allClasses(service, ride) {
  */
 async function behindCover(service, text, work, open) {
   const pkg = TAXI_SERVICES[service].package;
-  Screen.cover(text, COVER_ALPHA);
+  const name = TAXI_SERVICES[service].name;
+  Screen.cover(text, name, COVER_ALPHA);
   let showApp = false;
   try {
     if (open) {
+      step(`Sending route to ${name}`);
       const opened = await open();
       if (!opened) {
         showApp = true; // the Play Store page
         return { result: null, opened };
       }
     } else if (!Screen.onTop(pkg)) {
+      step(`Resuming ${name}`);
       Screen.bringToFront(pkg);
     }
     for (let i = 0; i < 30 && !Screen.onTop(pkg); i++) await sleep(200);
+    step(`Link established · ${name}`);
     const out = await work();
     showApp = !!out.showApp;
     return out;
   } finally {
+    await sleep(700); // let the last log line be read
     if (!showApp) {
       Screen.bringToFront();
       await sleep(600);
@@ -367,14 +376,18 @@ export async function orderTaxi(args, { signal, turn } = {}) {
     ride.service,
     'Checking taxi prices…',
     async () => {
+      step('Waiting for the fare engine');
       const shown = await readRide(ride.service, { signal });
-      if (!shown) return { result: null, showApp: true };
-      return {
-        result: {
-          shown,
-          classes: await allClasses(ride.service, shown),
-        },
-      };
+      if (!shown) {
+        step('No prices on screen');
+        return { result: null, showApp: true };
+      }
+      if (shown.destination) step(`Route locked · ${shown.destination}`);
+      step('Scanning service classes');
+      const classes = await allClasses(ride.service, shown);
+      const cheapest = Math.min(...classes.map((c) => c.price));
+      step(`${classes.length} classes · from ${sum(cheapest)}`);
+      return { result: { shown, classes } };
     },
     () => openTaxi(ride.url, ride.service)
   );
@@ -450,6 +463,7 @@ async function selectClass(service, name, { signal, turn }) {
     };
   }
   if (!card.selected) {
+    step(`Selecting ${card.name}`);
     await Screen.tap(card.x + card.w / 2, card.y + card.h / 2);
   }
   // The app takes a moment (WB over a second) to move the selection.
@@ -470,6 +484,7 @@ async function selectClass(service, name, { signal, turn }) {
     pending = null;
     return { error: `Could not select «${card.name}».` };
   }
+  step(`${chosen.name} selected · ${sum(chosen.price)}`);
   return {
     status: 'selected',
     ...speakable(now),
@@ -514,6 +529,7 @@ export async function confirmTaxiOrder(actionId, { signal, turn } = {}) {
 }
 
 async function pressOrder(order, { signal, turn }) {
+  step(`Verifying ${order.name} · ${sum(order.price)}`);
   // Back in front, the app needs a moment to show the order button again.
   let ride = null;
   for (let i = 0; i < 16 && !ride?.order; i++) {
@@ -553,6 +569,7 @@ async function pressOrder(order, { signal, turn }) {
     };
   }
   const o = ride.order;
+  step(`Pressing «${o.label}»`);
   if (!(await Screen.tap(o.x + o.w / 2, o.y + o.h / 2))) {
     return { error: 'Could not press the order button; nothing was ordered.' };
   }
@@ -564,6 +581,7 @@ async function pressOrder(order, { signal, turn }) {
     after = await readNow(order.service);
     if (!after?.order) break;
   }
+  step(after?.order ? 'App needs attention' : 'Order placed · finding a car');
   return {
     status: after?.order ? 'pressed_but_screen_unchanged' : 'ordered',
     class: order.name,

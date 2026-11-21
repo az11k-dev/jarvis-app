@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- bringToFront() resumes the taxi app's task through its launcher
+       intent, which Android 11+ only resolves for declared packages. -->
+  <queries>
+    <package android:name="ru.yandex.taxi" />
+    <package android:name="uz.wildberries.taxi.client" />
+  </queries>
   <application>
     <!-- Reads and taps the taxi apps' screens (Yandex Go, WB Taxi) only;
          the package list is fixed in jarvis_screen_service.xml. -->

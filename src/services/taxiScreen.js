@@ -122,6 +122,10 @@ function parseYandex(nodes) {
     name: n.desc.split(',')[0].replace(CLASS_WORDS, '').trim(),
     price: parsePrice(n.desc),
     eta: eta(n.desc.split(',').slice(1).join(',')) || null,
+    // «Fastest … From sum31,500»: several classes at once, no single price.
+    ...(/\b(from|от)\s*(sum|сум|сўм)?\s*\d/i.test(n.desc)
+      ? { from: true }
+      : {}),
     selected: false,
     ...bounds(n),
   }));

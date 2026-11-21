@@ -108,3 +108,26 @@ test('merging swiped reads keeps the first sighting', () => {
     ['Start1', 'Comfort2', 'Business3']
   );
 });
+
+test('Yandex Go: «Fastest» spans several classes and blocks ordering', () => {
+  const card = (desc, x, w) => ({ desc, click: true, x, y: 1963, w, h: 226 });
+  const ride = parseRide('yandex', [
+    card('Business service class, 58,000 sum, Pickup 11 min', 217, 226),
+    card('Fastest service class, From sum31,500 , Pickup 2 min', 736, 302),
+    {
+      desc: 'Select at least two service classes',
+      x: 168,
+      y: 2232,
+      w: 744,
+      h: 147,
+    },
+  ]);
+  assert.deepEqual(
+    ride.classes.map((c) => [c.name, c.price, !!c.from, c.selected]),
+    [
+      ['Business', 58000, false, false],
+      ['Fastest', 31500, true, true],
+    ]
+  );
+  assert.equal(ride.order, null);
+});

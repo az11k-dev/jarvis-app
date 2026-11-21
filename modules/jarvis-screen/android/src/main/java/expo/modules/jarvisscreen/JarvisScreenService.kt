@@ -2,9 +2,19 @@ package expo.modules.jarvisscreen
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.Intent
+import android.graphics.Color
 import android.graphics.Path
+import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
+import android.widget.TextView
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import java.lang.ref.WeakReference
@@ -21,6 +31,7 @@ class JarvisScreenService : AccessibilityService() {
   }
 
   override fun onDestroy() {
+    uncover()
     if (instance?.get() === this) instance = null
     super.onDestroy()
   }
@@ -149,6 +160,78 @@ class JarvisScreenService : AccessibilityService() {
     )
     if (!ok) onDone(false)
   }
+
+  // ── the cover: JARVIS's screen over the taxi app while it works there ──
+
+  private val main = Handler(Looper.getMainLooper())
+  private var cover: TextView? = null
+
+  /**
+   * Shows (or updates) a full-screen JARVIS card with `text` above every
+   * app. It takes no touches, so taps and swipes still reach the taxi app
+   * underneath, and its nodes stay readable; the user just doesn't see it.
+   */
+  fun cover(text: String, alpha: Int = 0xF2) = main.post {
+    cover?.let {
+      it.text = text
+      it.setBackgroundColor(Color.argb(alpha, 5, 8, 13))
+      return@post
+    }
+    val view = TextView(this).apply {
+      this.text = text
+      setTextColor(Color.parseColor("#7FDBFF"))
+      setTextSize(TypedValue.COMPLEX_UNIT_SP, 20f)
+      gravity = Gravity.CENTER
+      setBackgroundColor(Color.argb(alpha, 5, 8, 13))
+      importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+    val params = WindowManager.LayoutParams(
+      WindowManager.LayoutParams.MATCH_PARENT,
+      WindowManager.LayoutParams.MATCH_PARENT,
+      WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+      WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
+        WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+        WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+        WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+      PixelFormat.TRANSLUCENT
+    )
+    try {
+      (getSystemService(WINDOW_SERVICE) as WindowManager).addView(view, params)
+      cover = view
+    } catch (e: Exception) {
+      Log.w(TAG, "cover failed", e)
+    }
+  }
+
+  fun uncover() = main.post {
+    val view = cover ?: return@post
+    cover = null
+    try {
+      (getSystemService(WINDOW_SERVICE) as WindowManager).removeView(view)
+    } catch (e: Exception) {
+      Log.w(TAG, "uncover failed", e)
+    }
+  }
+
+  /**
+   * Brings a taxi app (or JARVIS itself) back to the front as it was left:
+   * the launcher intent resumes the existing task instead of restarting it.
+   */
+  fun bringToFront(pkg: String): Boolean {
+    if (pkg !in ALLOWED && pkg != packageName) return false
+    val intent = packageManager.getLaunchIntentForPackage(pkg) ?: return false
+    return try {
+      intent.removeFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+      startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+      true
+    } catch (e: Exception) {
+      Log.w(TAG, "bringToFront $pkg failed", e)
+      false
+    }
+  }
+
+  /** Whether `pkg` is the active window. */
+  fun onTop(pkg: String): Boolean = rootInActiveWindow?.packageName?.toString() == pkg
 
   /** Gestures land only while a taxi app is the active window. */
   private fun taxiOnTop(): Boolean =

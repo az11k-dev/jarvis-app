@@ -52,3 +52,17 @@ export async function sleep(ms) {
   if (Native?.sleep) return Native.sleep(Math.round(ms));
   return new Promise((r) => setTimeout(r, ms));
 }
+
+/**
+ * Covers the screen with a JARVIS card showing `text` (or updates it). It
+ * takes no touches: taps and reads still reach the taxi app underneath.
+ */
+export const cover = (text, alpha) => !!Native?.cover?.(text, alpha ?? null);
+
+export const uncover = () => !!Native?.uncover?.();
+
+/** Brings a taxi app back as it was left; no `pkg` brings JARVIS back. */
+export const bringToFront = (pkg) => !!Native?.bringToFront?.(pkg ?? null);
+
+/** Whether `pkg` is the window in front. */
+export const onTop = (pkg) => !!Native?.onTop?.(pkg);

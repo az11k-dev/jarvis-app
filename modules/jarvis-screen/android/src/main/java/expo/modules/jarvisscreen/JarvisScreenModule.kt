@@ -30,6 +30,20 @@ class JarvisScreenModule : Module() {
       Handler(Looper.getMainLooper()).postDelayed({ promise.resolve(null) }, ms.toLong())
     }
 
+    Function("cover") { text: String, alpha: Int? ->
+      JarvisScreenService.get()?.cover(text, alpha ?: 0xF2) != null
+    }
+
+    Function("uncover") { JarvisScreenService.get()?.uncover(); true }
+
+    // pkg: a taxi app, or null for JARVIS itself.
+    Function("bringToFront") { pkg: String? ->
+      val service = JarvisScreenService.get() ?: return@Function false
+      service.bringToFront(pkg ?: service.packageName)
+    }
+
+    Function("onTop") { pkg: String -> JarvisScreenService.get()?.onTop(pkg) == true }
+
     AsyncFunction("dump") { pkg: String ->
       JarvisScreenService.get()?.dump(pkg)
     }

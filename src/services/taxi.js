@@ -164,6 +164,7 @@ export async function openTaxi(url, service) {
 
 // Native wait: JS timers can stall while the taxi app is in front.
 const sleep = (ms) => Screen.sleep(ms);
+const COVER_ALPHA = 0xcc;
 const log = (...a) => __DEV__ && console.log('[taxi]', ...a);
 
 /**
@@ -171,7 +172,7 @@ const log = (...a) => __DEV__ && console.log('[taxi]', ...a);
  * button. Polls until the prices appear (the app computes them after the
  * route loads) or `timeoutMs` runs out; null if they never do.
  */
-async function readRide(service, { timeoutMs = 20000, signal } = {}) {
+async function readRide(service, { timeoutMs = 25000, signal } = {}) {
   const pkg = TAXI_SERVICES[service].package;
   const until = Date.now() + timeoutMs;
   let last = null;
@@ -219,29 +220,79 @@ const readNow = async (service) =>
   parseRide(service, (await Screen.dump(TAXI_SERVICES[service].package)) || []);
 
 /**
- * Every class the app offers: the row only shows three or four, so it is
- * swiped left until nothing new appears, then swiped back.
+ * Swipes the row back to its start — until a swipe changes nothing, since
+ * the first card's padding differs per app — and returns the ride there.
  */
-async function allClasses(service, ride) {
-  const lists = [ride.classes];
-  let swipes = 0;
+async function toRowStart(service, ride) {
   let now = ride;
-  while (moreToTheRight(now) && swipes < 3) {
-    await swipeRow(now.row, 1);
-    swipes++;
-    await sleep(900);
+  for (let i = 0; now?.row && i < 4; i++) {
+    await swipeRow(now.row, -1);
+    await sleep(700);
     const next = await readNow(service);
-    if (!next) break;
-    const before = mergeClasses(lists).length;
-    lists.push(next.classes);
-    if (mergeClasses(lists).length === before) break;
+    if (!next || sameRide(next, now)) break;
     now = next;
   }
-  for (let i = 0; i < swipes; i++) {
-    await swipeRow(ride.row, -1);
-    await sleep(400);
+  return now;
+}
+
+/**
+ * Walks the class row from its start to its end — it only shows three or
+ * four classes at a time — calling `visit(ride)` on each view until it
+ * returns something truthy, which is returned with that view.
+ */
+async function walkRow(service, ride, visit) {
+  let now = await toRowStart(service, ride);
+  for (let i = 0; ; i++) {
+    const found = visit(now);
+    if (found || !moreToTheRight(now) || i >= 4) return { found, now };
+    await swipeRow(now.row, 1);
+    await sleep(900);
+    const next = await readNow(service);
+    if (!next || sameRide(next, now)) return { found: null, now };
+    now = next;
   }
+}
+
+/** Every class the app offers, in the row's order. */
+async function allClasses(service, ride) {
+  const lists = [];
+  await walkRow(service, ride, (r) => {
+    lists.push(r.classes);
+  });
   return mergeClasses(lists);
+}
+
+/**
+ * Runs `work` in the taxi app behind JARVIS's cover screen, so the user
+ * never sees the swiping: covers the screen, brings the app to the front
+ * (or lets `open` do it), then returns to JARVIS. `work` returns
+ * { result, showApp }; showApp leaves the app visible for the user.
+ */
+async function behindCover(service, text, work, open) {
+  const pkg = TAXI_SERVICES[service].package;
+  Screen.cover(text, COVER_ALPHA);
+  let showApp = false;
+  try {
+    if (open) {
+      const opened = await open();
+      if (!opened) {
+        showApp = true; // the Play Store page
+        return { result: null, opened };
+      }
+    } else if (!Screen.onTop(pkg)) {
+      Screen.bringToFront(pkg);
+    }
+    for (let i = 0; i < 30 && !Screen.onTop(pkg); i++) await sleep(200);
+    const out = await work();
+    showApp = !!out.showApp;
+    return out;
+  } finally {
+    if (!showApp) {
+      Screen.bringToFront();
+      await sleep(600);
+    }
+    Screen.uncover();
+  }
 }
 
 /** The ride as JARVIS should hear it: no coordinates or pixels. */
@@ -250,9 +301,11 @@ const speakable = (ride, classes = ride.classes) => ({
   destination: ride.destination,
   ...(ride.trip_time ? { trip_time: ride.trip_time } : {}),
   ...(ride.payment ? { payment: ride.payment } : {}),
-  classes: classes.map(({ name, price, eta, selected }) => ({
+  classes: classes.map(({ name, price, eta, selected, from }) => ({
     name,
-    price_sum: price,
+    ...(from
+      ? { price_from_sum: price, several_classes: true }
+      : { price_sum: price }),
     ...(eta ? { car_in: eta } : {}),
     ...(selected ? { selected: true } : {}),
   })),
@@ -271,9 +324,11 @@ export function discardTaxiOrder() {
 
 function prepareOrder(service, ride, turn) {
   const chosen = ride.classes.find((c) => c.selected);
-  if (!chosen?.price || !ride.order) {
+  if (!chosen?.price || !ride.order || chosen.from) {
     pending = null;
-    return {};
+    return {
+      next: 'Nothing can be ordered yet: no single class is selected in the app. Say the classes and prices and ask which one to order; then taxi_class.',
+    };
   }
   pending = {
     id: String(nextId++),
@@ -308,15 +363,29 @@ export async function orderTaxi(args, { signal, turn } = {}) {
   }
   pending = null;
   log('opening', ride.url);
-  if (!(await openTaxi(ride.url, ride.service))) {
+  const { result, opened } = await behindCover(
+    ride.service,
+    'Checking taxi prices…',
+    async () => {
+      const shown = await readRide(ride.service, { signal });
+      if (!shown) return { result: null, showApp: true };
+      return {
+        result: {
+          shown,
+          classes: await allClasses(ride.service, shown),
+        },
+      };
+    },
+    () => openTaxi(ride.url, ride.service)
+  );
+  if (opened === false) {
     return {
       output: {
         error: `${TAXI_SERVICES[ride.service].name} is not installed; its Play Store page is open.`,
       },
     };
   }
-  const shown = await readRide(ride.service, { signal });
-  if (!shown) {
+  if (!result) {
     return {
       output: {
         ...ride.output,
@@ -330,8 +399,8 @@ export async function orderTaxi(args, { signal, turn } = {}) {
     output: {
       app: ride.output.app,
       status: 'showing_prices',
-      ...speakable(shown, await allClasses(ride.service, shown)),
-      ...prepareOrder(ride.service, shown, turn),
+      ...speakable(result.shown, result.classes),
+      ...prepareOrder(ride.service, result.shown, turn),
     },
   };
 }
@@ -348,9 +417,20 @@ const norm = (s) =>
     .trim();
 
 /** taxi_class: taps the class the user named and reads its price back. */
-export async function chooseTaxiClass(name, { signal, turn } = {}) {
+export async function chooseTaxiClass(name, opts = {}) {
   if (!Screen.isEnabled()) return { error: 'Screen reading is off.' };
   const service = await preferredService(); // the app opened last
+  const { result } = await behindCover(
+    service,
+    'Choosing the class…',
+    async () => ({
+      result: await selectClass(service, name, opts),
+    })
+  );
+  return result;
+}
+
+async function selectClass(service, name, { signal, turn }) {
   const ride = await readRide(service, { timeoutMs: 5000, signal });
   if (!ride) return { error: 'No taxi prices on screen. Order a taxi first.' };
   const wanted = norm(name);
@@ -358,14 +438,10 @@ export async function chooseTaxiClass(name, { signal, turn } = {}) {
     r?.classes.find((c) => norm(c.name) === wanted) ||
     r?.classes.find((c) => norm(c.name).startsWith(wanted)) ||
     r?.classes.find((c) => norm(c.name).includes(wanted));
-  let shown = ride;
-  let card = find(shown);
-  // Classes beyond the edge of the row appear after a swipe.
-  for (let i = 0; !card && moreToTheRight(shown) && i < 3; i++) {
-    await swipeRow(shown.row, 1);
-    await sleep(900);
-    shown = await readNow(service);
-    card = find(shown);
+  let card = find(ride);
+  if (!card) {
+    const { found, now } = await walkRow(service, ride, find);
+    card = found && now.classes.includes(found) ? found : null;
   }
   if (!card) {
     return {
@@ -375,9 +451,20 @@ export async function chooseTaxiClass(name, { signal, turn } = {}) {
   }
   if (!card.selected) {
     await Screen.tap(card.x + card.w / 2, card.y + card.h / 2);
-    await sleep(1200);
   }
-  const now = await readRide(service, { timeoutMs: 5000, signal });
+  // The app takes a moment (WB over a second) to move the selection.
+  const isCard = (c) => c?.selected && norm(c.name) === norm(card.name);
+  let now = null;
+  for (let i = 0; i < 12; i++) {
+    signal?.throwIfAborted?.();
+    await sleep(500);
+    now = await readNow(service);
+    if (now?.classes.some(isCard)) break;
+  }
+  // Settled: the price shown once the selection has moved.
+  if (now?.classes.some(isCard)) {
+    now = (await readRide(service, { timeoutMs: 5000, signal })) || now;
+  }
   const chosen = now?.classes.find((c) => c.selected);
   if (!chosen || norm(chosen.name) !== norm(card.name)) {
     pending = null;
@@ -413,9 +500,49 @@ export async function confirmTaxiOrder(actionId, { signal, turn } = {}) {
         'Expired: the user did not confirm right after hearing the price. Read the prices again (order_taxi) if they still want it.',
     };
   }
-  const ride = await readRide(order.service, { timeoutMs: 5000, signal });
+  const { result } = await behindCover(
+    order.service,
+    'Ordering the taxi…',
+    async () => {
+      const r = await pressOrder(order, { signal, turn });
+      // Pressed: leave the app up so the user sees the car (or what the
+      // app still needs).
+      return { result: r, showApp: !!r.status };
+    }
+  );
+  return result;
+}
+
+async function pressOrder(order, { signal, turn }) {
+  // Back in front, the app needs a moment to show the order button again.
+  let ride = null;
+  for (let i = 0; i < 16 && !ride?.order; i++) {
+    signal?.throwIfAborted?.();
+    if (i) await sleep(500);
+    ride = await readNow(order.service);
+  }
+  if (ride?.order) {
+    ride = (await readRide(order.service, { timeoutMs: 5000, signal })) || ride;
+  }
+  // The selected card may be scrolled out of the row: find it.
+  if (ride?.order && !ride.classes.some((c) => c.selected)) {
+    ride = (
+      await walkRow(order.service, ride, (r) =>
+        r.classes.find((c) => c.selected)
+      )
+    ).now;
+  }
   const chosen = ride?.classes.find((c) => c.selected);
   if (!chosen || !ride.order) {
+    log(
+      'confirm: screen not ready',
+      JSON.stringify({
+        classes: ride?.classes.map(
+          (c) => `${c.name} ${c.price} ${c.w}${c.selected ? '*' : ''}`
+        ),
+        order: ride?.order,
+      })
+    );
     return { error: 'The taxi screen changed; nothing was ordered.' };
   }
   if (norm(chosen.name) !== norm(order.name) || chosen.price !== order.price) {
@@ -429,11 +556,14 @@ export async function confirmTaxiOrder(actionId, { signal, turn } = {}) {
   if (!(await Screen.tap(o.x + o.w / 2, o.y + o.h / 2))) {
     return { error: 'Could not press the order button; nothing was ordered.' };
   }
-  await sleep(2500);
-  const after = parseRide(
-    order.service,
-    (await Screen.dump(TAXI_SERVICES[order.service].package)) || []
-  );
+  // The app takes a few seconds (WB over 2.5) to swap the button for the
+  // ride screen.
+  let after = null;
+  for (let i = 0; i < 16; i++) {
+    await sleep(600);
+    after = await readNow(order.service);
+    if (!after?.order) break;
+  }
   return {
     status: after?.order ? 'pressed_but_screen_unchanged' : 'ordered',
     class: order.name,

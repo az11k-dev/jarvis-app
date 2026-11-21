@@ -811,7 +811,9 @@ export class JarvisEngine {
 
   /** Runs a typed command as if it had been spoken (dev bridge `?ask=`). */
   async ask(text) {
-    this.cancelTurn();
+    // Like a spoken phrase: an idle JARVIS keeps what the last turn left
+    // waiting for a yes (a taxi order, a Telegram deletion).
+    if (this.busy) this.cancelTurn();
     this.clearFollowUp();
     const turn = ++this.turn;
     this.busy = true;

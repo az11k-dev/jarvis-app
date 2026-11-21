@@ -23,7 +23,12 @@ import {
   savePlace,
   whereAmI,
 } from './places';
-import { openTaxi, prepareTaxi } from './taxi';
+import {
+  chooseTaxiClass,
+  confirmTaxiOrder,
+  openScreenSettings,
+  orderTaxi,
+} from './taxi';
 import { scanWithCamera } from './scanner';
 import {
   addSosContact,
@@ -537,7 +542,7 @@ export const TOOL_DEFINITIONS = [
   ),
   fn(
     'order_taxi',
-    'Open Yandex Go or WB Taxi with the route filled in (prices for each class shown), so the user only taps the order button. Use for «вызови такси домой», «закажи Яндекс на работу», «такси до аэропорта через WB», "get me a cab to the office". JARVIS cannot press the order button itself: that charges the user.',
+    'Open Yandex Go or WB Taxi with the route filled in and read what it shows: every class with its price in sum and when the car comes, the selected class, the pickup and destination as the app understood them, trip time and payment. Returns an action_id for ordering the selected class (taxi_confirm, after the user says yes). Use for «вызови такси домой», «закажи Яндекс на работу», «такси до аэропорта через WB», «сколько стоит такси до работы?», "get me a cab to the office".',
     {
       service: {
         type: 'string',
@@ -557,6 +562,35 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['service', 'to', 'from']
+  ),
+  fn(
+    'taxi_class',
+    'Select a class in the open taxi app («давай комфорт», «бизнес») and read its price back. Returns an action_id for ordering it.',
+    {
+      class_name: {
+        type: 'string',
+        description:
+          "The class exactly as order_taxi listed it (Start, Comfort, Comfort+, Standard…); map the user's words to it («комфорт» → Comfort, «эконом» → Start or Standard).",
+      },
+    },
+    ['class_name']
+  ),
+  fn(
+    'taxi_confirm',
+    "Press the order button in the taxi app: orders the class and price the user just heard. Only when the user's reply right after hearing the price says yes («да», «заказывай», «давай»). Refuses if the price changed.",
+    {
+      action_id: {
+        type: 'string',
+        description: 'action_id from order_taxi or taxi_class.',
+      },
+    },
+    ['action_id']
+  ),
+  fn(
+    'taxi_screen_setup',
+    'Open Settings → Accessibility so the user can turn on «JARVIS: taxi», which lets JARVIS read taxi prices and order. Use when order_taxi says screen_reading is off and the user agrees.',
+    {},
+    []
   ),
   fn(
     'open_youtube',
@@ -935,17 +969,24 @@ export async function runTool(name, args, { signal, turn } = {}) {
           }),
       };
 
-    case 'order_taxi': {
-      const ride = await prepareTaxi(
+    case 'order_taxi':
+      return orderTaxi(
         { service: args.service, from: args.from, to: args.to },
-        { signal }
+        { signal, turn }
       );
-      if (!ride.url) return { output: ride.output };
+
+    case 'taxi_class':
       return {
-        output: ride.output,
-        after: () => openTaxi(ride.url, ride.service),
+        output: await chooseTaxiClass(args.class_name, { signal, turn }),
       };
-    }
+
+    case 'taxi_confirm':
+      return {
+        output: await confirmTaxiOrder(args.action_id, { signal, turn }),
+      };
+
+    case 'taxi_screen_setup':
+      return { output: openScreenSettings() };
 
     case 'end_conversation':
       return { output: { status: 'standing_by' }, endConversation: true };

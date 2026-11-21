@@ -42,6 +42,7 @@ import {
   stopSos,
 } from '../services/sos';
 import { cleanForSpeech, voiceOutput } from '../services/voice';
+import { discardTaxiOrder } from '../services/taxi';
 import { discardPending } from '../services/telegramSend';
 import { speechLanguage } from '../utils/language';
 
@@ -153,7 +154,10 @@ const TOOL_ACTIVITY = {
   sos_contacts: 'Updating SOS contacts…',
   places: 'Checking saved places…',
   where_am_i: 'Finding your location…',
-  order_taxi: 'Preparing the taxi…',
+  order_taxi: 'Checking taxi prices…',
+  taxi_class: 'Choosing the class…',
+  taxi_confirm: 'Ordering the taxi…',
+  taxi_screen_setup: 'Opening settings…',
   reset_conversation: 'Clearing the chat…',
 };
 
@@ -394,13 +398,21 @@ export class JarvisEngine {
 
   /** Keeps the mic (and JS) alive in the background via a foreground service. */
   async startBackgroundService() {
-    if (!Background.isSupported || Background.isRunning()) return;
+    // A service left running by an earlier JS instance (a dev reload) is
+    // started again: that also gives this instance the keep-alive task that
+    // keeps its timers ticking in the background.
+    if (
+      !Background.isSupported ||
+      (Background.isRunning() && this.backgroundStarted)
+    )
+      return;
     try {
       await Background.start({
         title: 'J.A.R.V.I.S.',
         text: 'Listening. Say “Jarvis”, sir.',
         stopLabel: 'Turn off',
       });
+      this.backgroundStarted = true;
     } catch (e) {
       // Usually "app not in the foreground"; retried in setAppActive(true).
       console.warn('Background listening unavailable:', e);
@@ -584,8 +596,10 @@ export class JarvisEngine {
 
   cancelTurn() {
     this.turn++;
-    // A Telegram deletion whose read-back was cut off must not be confirmable.
+    // A Telegram deletion or a taxi order whose read-back was cut off must
+    // not be confirmable.
     discardPending();
+    discardTaxiOrder();
     this.abort?.abort();
     this.abort = null;
     this.busy = false;

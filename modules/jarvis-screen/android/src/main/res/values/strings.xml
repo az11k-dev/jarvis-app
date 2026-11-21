@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="jarvis_screen_label">JARVIS: taxi</string>
+  <string name="jarvis_screen_description">Lets JARVIS read the taxi classes, prices and addresses in Yandex Go and WB Taxi, pick the class you ask for and, after you say yes, press the order button. It works only in those two apps.</string>
+</resources>

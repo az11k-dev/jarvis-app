@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No android:packageNames: with it, window changes in other apps never
+     reach the service and its window cache goes stale (it read 0 nodes).
+     The two-app limit is enforced in JarvisScreenService.ALLOWED instead. -->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+  android:description="@string/jarvis_screen_description"
+  android:accessibilityEventTypes="typeWindowStateChanged|typeWindowsChanged"
+  android:accessibilityFeedbackType="feedbackGeneric"
+  android:accessibilityFlags="flagReportViewIds|flagRetrieveInteractiveWindows|flagIncludeNotImportantViews"
+  android:canRetrieveWindowContent="true"
+  android:canPerformGestures="true"
+  android:notificationTimeout="200" />

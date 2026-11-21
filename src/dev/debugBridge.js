@@ -144,6 +144,31 @@ export function attachDebugBridge(engine) {
       })().catch((e) => console.log(`[voicenote] error: ${e.message}`));
       return;
     }
+    // ?screen=<package>[&wait=<s>] logs what the accessibility service sees of a taxi
+    // app, one node per line ([screen] x,y wxh flags text | desc #id).
+    const screen = /[?&]screen=([^&]+)/.exec(url || '');
+    if (screen) {
+      // &wait=<s> reads later, so the taxi app can be brought to the front.
+      const wait = Number(/[?&]wait=(\d+)/.exec(url)?.[1] || 0);
+      new Promise((r) => setTimeout(r, wait * 1000))
+        .then(() =>
+          require('../../modules/jarvis-screen').dump(
+            decodeURIComponent(screen[1])
+          )
+        )
+        .then((nodes) => {
+          if (!nodes) return console.log('[screen] service is off');
+          console.log(`[screen] ${nodes.length} nodes`);
+          for (const n of nodes) {
+            const flags = `${n.click ? 'C' : ''}${n.scroll ? 'S' : ''}${n.sel ? '*' : ''}`;
+            console.log(
+              `[screen] ${'.'.repeat(Math.min(n.depth, 30))}${n.x},${n.y} ${n.w}x${n.h} ${flags} ${n.cls} «${n.text ?? ''}» | ${n.desc ?? ''} #${n.id ?? ''}`
+            );
+          }
+        })
+        .catch((e) => console.log(`[screen] error: ${e.message}`));
+      return;
+    }
     // ?td=<TDLib request as JSON> sends it and logs the result.
     const td = /[?&]td=([^&]+)/.exec(url || '');
     if (td) {

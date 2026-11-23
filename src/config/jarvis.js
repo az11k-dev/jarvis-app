@@ -308,3 +308,13 @@ export const TELEGRAM_ANNOUNCE = {
   maxSpokenPerChat: 3, // more than this is announced as a count
   maxChars: 200, // longer messages are cut when spoken
 };
+
+// ── Laptop and server control (remote/: relay on the server + laptop agent) ──
+export const REMOTE = {
+  url: (process.env.EXPO_PUBLIC_JARVIS_REMOTE_URL || '').replace(/\/+$/, ''),
+  token: process.env.EXPO_PUBLIC_JARVIS_REMOTE_TOKEN || '',
+  requestTimeoutMs: 35000, // non-shell actions (screenshots, apps, volume…)
+  defaultShellTimeoutS: 30, // shell commands; the model may ask for up to 85
+  confirmTtlMs: 2 * 60 * 1000, // a risky command must be confirmed within this time
+  outputChars: 3000, // command output passed to the model
+};

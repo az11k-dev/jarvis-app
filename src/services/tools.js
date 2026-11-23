@@ -29,6 +29,14 @@ import {
   openScreenSettings,
   orderTaxi,
 } from './taxi';
+import {
+  confirmRemote,
+  laptopControl,
+  laptopScreen,
+  remoteShell,
+  serverStatus,
+} from './remote';
+import { laptopAction } from './remoteFormat';
 import { scanWithCamera } from './scanner';
 import {
   addSosContact,
@@ -72,7 +80,14 @@ const fn = (name, description, properties = {}, required = []) => ({
 
 // Tools the user takes part in, or that play something: they take as long
 // as they take (every other tool is cut off after TOOL_TIMEOUT_MS).
-export const UNTIMED_TOOLS = new Set(['analyze_image', 'tg_media']);
+// Shell commands carry their own time limit (up to 85 s).
+export const UNTIMED_TOOLS = new Set([
+  'analyze_image',
+  'tg_media',
+  'laptop_shell',
+  'server_shell',
+  'remote_confirm',
+]);
 
 /** Tool schemas sent to the model. */
 export const TOOL_DEFINITIONS = [
@@ -635,6 +650,93 @@ export const TOOL_DEFINITIONS = [
     ['id']
   ),
   fn(
+    'laptop_control',
+    "Control the user's laptop (Pop!_OS Linux, GNOME): open/close apps, switch windows, sound, media, typing, keys, lock, sleep. Acts immediately.",
+    {
+      action: {
+        type: 'string',
+        enum: [
+          'open_app',
+          'list_apps',
+          'open_url',
+          'windows',
+          'focus',
+          'close',
+          'minimize',
+          'maximize',
+          'fullscreen',
+          'volume',
+          'media',
+          'type',
+          'keys',
+          'notify',
+          'lock',
+          'sleep',
+          'status',
+        ],
+        description:
+          'open_app: start an app by name (value = app name in English as installed, e.g. "Google Chrome", "Telegram", "Terminal", "Files", "Visual Studio Code"). list_apps: installed apps (value = optional filter). open_url: open a link or site in the default browser (value = URL or domain). windows: list open windows. focus: bring a window to front (value = app or title). close: close an app\'s windows politely (value = app or title). minimize/maximize/fullscreen: the named window (value) or the active one (empty value). volume: value = "get", "up", "down", "mute", "unmute", or a number 0-150 to set; "up 20" / "down 20" for a bigger step. media: value = play_pause, play, pause, next, previous, stop, or status (what is playing). type: type text into the focused window (value = the text). keys: press keys in xdotool syntax (value e.g. "ctrl+t", "Return", "ctrl+shift+t", "super", "alt+Tab"; several separated by spaces). notify: show a desktop notification (value = text). lock: lock the screen. sleep: suspend the laptop. status: battery, volume, active window, lock state, memory, disk.',
+      },
+      value: {
+        type: 'string',
+        description: 'Argument for the action as described; empty when none.',
+      },
+    },
+    ['action', 'value']
+  ),
+  fn(
+    'laptop_screen',
+    'Look at the laptop screen: takes a screenshot and answers a question about it. Use for «что у меня на экране?», «что там открыто?», to read text or errors on the laptop, or to see the result of an action.',
+    {
+      question: {
+        type: 'string',
+        description: 'What to find out from the screen, in English.',
+      },
+    },
+    ['question']
+  ),
+  fn(
+    'laptop_shell',
+    "Run a bash command on the user's laptop as the user (az11k, home /home/az11k, Pop!_OS 22.04, X11 desktop available, no sudo password: sudo won't work). Returns exit_code, stdout, stderr. Commands that delete, kill, stop or shut down are not run yet: you get an action_id to confirm with remote_confirm after the user agrees.",
+    {
+      command: { type: 'string', description: 'The bash command.' },
+      timeout_s: {
+        type: 'integer',
+        description:
+          'Time limit in seconds, 1-85 (default 30). Longer jobs: run them in the background with nohup and check the log later.',
+      },
+    },
+    ['command', 'timeout_s']
+  ),
+  fn(
+    'server_shell',
+    "Run a bash command on the user's server (Ubuntu 24.04, as root, host ubuntu-4gb; nginx sites in /etc/nginx/sites-enabled, docker, pm2, redis, MongoDB in docker; it also hosts the user's live sites, so be careful). Returns exit_code, stdout, stderr. Commands that delete, kill, stop, restart or shut down are not run yet: you get an action_id to confirm with remote_confirm after the user agrees.",
+    {
+      command: { type: 'string', description: 'The bash command.' },
+      timeout_s: {
+        type: 'integer',
+        description:
+          'Time limit in seconds, 1-85 (default 30). Longer jobs: run them in the background with nohup and check the log later.',
+      },
+    },
+    ['command', 'timeout_s']
+  ),
+  fn(
+    'server_status',
+    "Overview of the user's server: uptime, load, memory, disk, failed services and docker containers."
+  ),
+  fn(
+    'remote_confirm',
+    'Run the command prepared by laptop_shell or server_shell. Only after the user, in their reply, confirmed.',
+    {
+      action_id: {
+        type: 'string',
+        description: 'action_id from laptop_shell or server_shell.',
+      },
+    },
+    ['action_id']
+  ),
+  fn(
     'end_conversation',
     'Call when the user says goodbye, thanks you to finish, or tells you to stand by. JARVIS goes back to waiting for the wake word.'
   ),
@@ -987,6 +1089,34 @@ export async function runTool(name, args, { signal, turn } = {}) {
 
     case 'taxi_screen_setup':
       return { output: openScreenSettings() };
+
+    case 'laptop_control':
+      return {
+        output: await laptopControl(
+          ...laptopAction(String(args.action), String(args.value ?? '')),
+          { signal }
+        ),
+      };
+
+    case 'laptop_screen':
+      return { output: await laptopScreen(args.question, { signal }) };
+
+    case 'laptop_shell':
+    case 'server_shell':
+      return {
+        output: await remoteShell(
+          name === 'laptop_shell' ? 'laptop' : 'server',
+          args.command,
+          args.timeout_s,
+          { signal, turn }
+        ),
+      };
+
+    case 'server_status':
+      return { output: await serverStatus({ signal }) };
+
+    case 'remote_confirm':
+      return { output: await confirmRemote(args.action_id, { signal, turn }) };
 
     case 'end_conversation':
       return { output: { status: 'standing_by' }, endConversation: true };

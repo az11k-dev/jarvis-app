@@ -1,0 +1,14 @@
+[Unit]
+Description=JARVIS laptop agent (control from the phone)
+After=graphical-session.target network-online.target
+PartOf=graphical-session.target
+
+[Service]
+EnvironmentFile=%h/.config/jarvis-agent/env
+ExecStart=%h/.local/share/jarvis-agent/node %h/.local/share/jarvis-agent/agent/laptop-agent.mjs
+Restart=always
+RestartSec=3
+KillMode=process
+
+[Install]
+WantedBy=graphical-session.target

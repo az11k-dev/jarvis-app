@@ -44,6 +44,7 @@ import {
 import { cleanForSpeech, voiceOutput } from '../services/voice';
 import { discardTaxiOrder } from '../services/taxi';
 import { discardPending } from '../services/telegramSend';
+import { discardRemotePending } from '../services/remote';
 import { speechLanguage } from '../utils/language';
 
 /**
@@ -158,6 +159,12 @@ const TOOL_ACTIVITY = {
   taxi_class: 'Choosing the class…',
   taxi_confirm: 'Ordering the taxi…',
   taxi_screen_setup: 'Opening settings…',
+  laptop_control: 'Working on the laptop…',
+  laptop_screen: 'Looking at the laptop screen…',
+  laptop_shell: 'Running on the laptop…',
+  server_shell: 'Running on the server…',
+  server_status: 'Checking the server…',
+  remote_confirm: 'Running…',
   reset_conversation: 'Clearing the chat…',
 };
 
@@ -600,6 +607,7 @@ export class JarvisEngine {
     // not be confirmable.
     discardPending();
     discardTaxiOrder();
+    discardRemotePending();
     this.abort?.abort();
     this.abort = null;
     this.busy = false;

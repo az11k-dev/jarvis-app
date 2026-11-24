@@ -1,5 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  KeyboardAvoidingView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import ArcReactor, { STATUS_COLORS } from '../components/ArcReactor';
@@ -7,6 +13,7 @@ import HudBackground from '../components/hud/HudBackground';
 import HudDock from '../components/hud/HudDock';
 import MediaViewer from '../components/MediaViewer';
 import TelegramModal, { useTelegramState } from '../components/TelegramModal';
+import TextInputBar from '../components/TextInputBar';
 import Transcript from '../components/Transcript';
 import VisionScanner from '../components/VisionScanner';
 import VoicePickerModal from '../components/VoicePickerModal';
@@ -101,92 +108,99 @@ export default function Home() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <HudBackground />
-
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.brand}>J.A.R.V.I.S.</Text>
-          <Text style={styles.brandSub}>
-            JUST A RATHER VERY INTELLIGENT SYSTEM
-          </Text>
-        </View>
-        <View style={styles.headerRight}>
-          <Text style={styles.clock}>{clock}</Text>
-          <View style={styles.statusRow}>
-            <View style={[styles.statusDot, { backgroundColor: color }]} />
-            <Text style={[styles.statusRowText, { color }]}>
-              {status === 'off' ? 'OFFLINE' : 'ONLINE'}
+      {/* Edge-to-edge: the window doesn't resize for the keyboard, so the
+          screen makes room for it itself (for the text box). */}
+      <KeyboardAvoidingView style={local.fill} behavior="padding">
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.brand}>J.A.R.V.I.S.</Text>
+            <Text style={styles.brandSub}>
+              JUST A RATHER VERY INTELLIGENT SYSTEM
             </Text>
           </View>
-        </View>
-      </View>
-
-      <View style={styles.reactorArea}>
-        <View style={local.reactorRow}>
-          <LevelMeter level={jarvis.level} color={color} />
-          <ArcReactor
-            status={status}
-            level={jarvis.level}
-            userSpeaking={jarvis.userSpeaking}
-            onPress={() => engine.tap()}
-          />
-          <Readouts items={readouts} />
+          <View style={styles.headerRight}>
+            <Text style={styles.clock}>{clock}</Text>
+            <View style={styles.statusRow}>
+              <View style={[styles.statusDot, { backgroundColor: color }]} />
+              <Text style={[styles.statusRowText, { color }]}>
+                {status === 'off' ? 'OFFLINE' : 'ONLINE'}
+              </Text>
+            </View>
+          </View>
         </View>
 
-        <View style={styles.statusTitleRow}>
-          <View style={[styles.statusRule, { backgroundColor: color }]} />
-          <Text
-            style={[styles.statusTitle, { color }]}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-          >
-            {shownTitle}
-          </Text>
-          <View style={[styles.statusRule, { backgroundColor: color }]} />
+        <View style={styles.reactorArea}>
+          <View style={local.reactorRow}>
+            <LevelMeter level={jarvis.level} color={color} />
+            <ArcReactor
+              status={status}
+              level={jarvis.level}
+              userSpeaking={jarvis.userSpeaking}
+              onPress={() => engine.tap()}
+            />
+            <Readouts items={readouts} />
+          </View>
+
+          <View style={styles.statusTitleRow}>
+            <View style={[styles.statusRule, { backgroundColor: color }]} />
+            <Text
+              style={[styles.statusTitle, { color }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+            >
+              {shownTitle}
+            </Text>
+            <View style={[styles.statusRule, { backgroundColor: color }]} />
+          </View>
+          <Text style={styles.statusSubtitle}>{subtitle}</Text>
+          {downloadLine(jarvis.speech) && (
+            <Text style={styles.downloadText}>
+              {downloadLine(jarvis.speech)}
+            </Text>
+          )}
+          {jarvis.sos === 'active' && (
+            <Text style={styles.errorText}>
+              SOS MODE IS ON · say “Jarvis, cancel SOS”
+            </Text>
+          )}
+          {jarvis.error && <Text style={styles.errorText}>{jarvis.error}</Text>}
         </View>
-        <Text style={styles.statusSubtitle}>{subtitle}</Text>
-        {downloadLine(jarvis.speech) && (
-          <Text style={styles.downloadText}>{downloadLine(jarvis.speech)}</Text>
-        )}
-        {jarvis.sos === 'active' && (
-          <Text style={styles.errorText}>
-            SOS MODE IS ON · say “Jarvis, cancel SOS”
-          </Text>
-        )}
-        {jarvis.error && <Text style={styles.errorText}>{jarvis.error}</Text>}
-      </View>
 
-      <Transcript messages={jarvis.messages} />
+        <Transcript messages={jarvis.messages} />
 
-      <HudDock
-        items={[
-          {
-            key: 'mic',
-            icon: settings.micEnabled ? 'mic' : 'micOff',
-            label: settings.micEnabled ? 'MIC' : 'OFF',
-            tone: settings.micEnabled ? 'active' : 'alert',
-            onPress: () => engine.setMicEnabled(!settings.micEnabled),
-          },
-          {
-            key: 'voice',
-            icon: 'voice',
-            label: 'VOICE',
-            onPress: () => setIsVoicePickerVisible(true),
-          },
-          {
-            key: 'telegram',
-            icon: 'send',
-            label: 'TELEGRAM',
-            badge: telegram.step === 'ready' ? COLORS.cyan : undefined,
-            onPress: () => setIsTelegramVisible(true),
-          },
-          {
-            key: 'reset',
-            icon: 'reset',
-            label: 'RESET',
-            onPress: () => engine.clearConversation(),
-          },
-        ]}
-      />
+        <TextInputBar onSend={(text) => engine.ask(text)} />
+
+        <HudDock
+          items={[
+            {
+              key: 'mic',
+              icon: settings.micEnabled ? 'mic' : 'micOff',
+              label: settings.micEnabled ? 'MIC' : 'OFF',
+              tone: settings.micEnabled ? 'active' : 'alert',
+              onPress: () => engine.setMicEnabled(!settings.micEnabled),
+            },
+            {
+              key: 'voice',
+              icon: 'voice',
+              label: 'VOICE',
+              onPress: () => setIsVoicePickerVisible(true),
+            },
+            {
+              key: 'telegram',
+              icon: 'send',
+              label: 'TELEGRAM',
+              badge: telegram.step === 'ready' ? COLORS.cyan : undefined,
+              onPress: () => setIsTelegramVisible(true),
+            },
+            {
+              key: 'reset',
+              icon: 'reset',
+              label: 'RESET',
+              onPress: () => engine.clearConversation(),
+            },
+          ]}
+        />
+      </KeyboardAvoidingView>
 
       <VoicePickerModal
         isVisible={isVoicePickerVisible}
@@ -265,6 +279,7 @@ function Readouts({ items }) {
 }
 
 const local = StyleSheet.create({
+  fill: { flex: 1 },
   reactorRow: {
     flexDirection: 'row',
     alignItems: 'center',

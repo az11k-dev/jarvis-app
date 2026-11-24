@@ -55,6 +55,7 @@ import {
 } from './telegramChats';
 import { controlAnnouncements, watchChat } from './telegramAnnounce';
 import { telegramMedia } from './telegramMedia';
+import { textInput } from './textInput';
 import { confirmDelete, prepareDelete, sendMessage } from './telegramSend';
 import {
   deliveryAddress,
@@ -115,6 +116,12 @@ export const TOOL_DEFINITIONS = [
       },
     },
     ['question', 'source', 'facing']
+  ),
+  fn(
+    'text_input',
+    "Show or hide the text box on JARVIS's screen, where the user can type messages to JARVIS instead of speaking. It is hidden by default; open it when the user asks to let them write, type or text JARVIS (e.g. «открой ввод текста», «дай мне написать»), close it when they ask to.",
+    { action: { type: 'string', enum: ['open', 'close'] } },
+    ['action']
   ),
   fn('open_telegram', 'Open the Telegram app.'),
   fn(
@@ -788,6 +795,15 @@ export async function runTool(name, args, { signal, turn } = {}) {
       );
       return { output: { analysis: description || 'Nothing recognised.' } };
     }
+
+    case 'text_input':
+      if (args.action === 'close') {
+        return {
+          output: { status: textInput.hide() ? 'closed' : 'was_not_open' },
+        };
+      }
+      textInput.show();
+      return { output: { status: 'opened_user_can_type_now' } };
 
     case 'open_telegram':
       return {

@@ -132,6 +132,7 @@ const isNoise = (text) =>
 const TOOL_ACTIVITY = {
   web_search: 'Searching the web…',
   analyze_image: 'Analyzing…',
+  text_input: 'Opening the keyboard…',
   tg_unread_chats: 'Checking Telegram…',
   tg_find_chat: 'Finding the chat…',
   tg_read_messages: 'Reading messages…',
@@ -616,6 +617,13 @@ export class JarvisEngine {
 
   resumeAfterSpeaking(next = 'listening', windowMs) {
     if (this.disposed || this.status === 'off') return;
+    // A typed command with the microphone turned off: back to off, not to
+    // a listening state with no microphone behind it.
+    if (!this.snapshot.settings.micEnabled) {
+      this.clearFollowUp();
+      this.set({ status: 'off', userSpeaking: false, activity: null });
+      return;
+    }
     this.vad.reset();
     this.vad.ignoreFor(VAD.echoGuardMs);
     if (next !== 'listening') this.enterStandby();
@@ -817,7 +825,7 @@ export class JarvisEngine {
     throw new SpeechNotReadyError();
   }
 
-  /** Runs a typed command as if it had been spoken (dev bridge `?ask=`). */
+  /** Runs a typed command as if it had been spoken (text box, `?ask=`). */
   async ask(text) {
     // Like a spoken phrase: an idle JARVIS keeps what the last turn left
     // waiting for a yes (a taxi order, a Telegram deletion).

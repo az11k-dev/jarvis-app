@@ -4,7 +4,9 @@ import { TOOL_TIMEOUT_MS } from '../config/jarvis';
 import { createResponse, OpenAIError } from './openai';
 import { runTool, TOOL_DEFINITIONS, UNTIMED_TOOLS } from './tools';
 
-const MAX_TOOL_ROUNDS = 5;
+// Multi-step laptop/server work («open the project, go fullscreen, start
+// Claude in its terminal») takes ~10 rounds; most other turns take 1-3.
+const MAX_TOOL_ROUNDS = 12;
 const MAX_HISTORY_ITEMS = 30;
 // Tools whose result needs no follow-up from the model when it already
 // gave a reply alongside them.
@@ -63,6 +65,27 @@ export class JarvisBrain {
   }
 
   trimHistory() {
+    if (this.history.length <= MAX_HISTORY_ITEMS) return;
+    // Tool calls of earlier turns go first: a long laptop task can make
+    // 20+ of them, which would push out what the user actually asked
+    // («…tell Claude to analyse the project») a turn ago.
+    const lastUser = this.history.findLastIndex((item) => item.role === 'user');
+    if (lastUser > 0) {
+      this.history = [
+        ...this.history
+          .slice(0, lastUser)
+          .filter(
+            (item) =>
+              item.type !== 'function_call' &&
+              item.type !== 'function_call_output'
+          ),
+        ...this.history.slice(lastUser),
+      ];
+      if (this.history.length <= MAX_HISTORY_ITEMS) return;
+    }
+    // One turn alone can exceed the limit (12 rounds of tools): then keep
+    // only what was said.
+    this.history = this.history.filter((item) => item.role);
     if (this.history.length <= MAX_HISTORY_ITEMS) return;
     let start = this.history.length - MAX_HISTORY_ITEMS;
     // Never start on a tool result whose call was trimmed away.
@@ -170,13 +193,42 @@ export class JarvisBrain {
       }
     }
 
+    // Out of rounds: one last call without tools, so JARVIS says what it
+    // did and what is left instead of a canned line.
+    let text = '';
+    try {
+      text = outputText(
+        await createResponse(
+          {
+            instructions: instructions(),
+            input: [
+              ...input,
+              {
+                role: 'developer',
+                content:
+                  'Step limit reached: no more tools this turn. In one or two spoken sentences tell the user what you did and what is left; offer to continue if it makes sense.',
+              },
+            ],
+            tools: TOOL_DEFINITIONS,
+            toolChoice: 'none',
+          },
+          { signal }
+        )
+      );
+    } catch (e) {
+      if (signal?.aborted) throw e;
+    }
+    if (!text) {
+      text =
+        speechLanguage(userText) === 'ru'
+          ? 'Сэр, задача оказалась сложнее, чем ожидалось.'
+          : 'Sir, the task turned out to be harder than expected.';
+    }
+    input.push({ role: 'assistant', content: text });
     this.history = input;
     this.trimHistory();
     return {
-      text:
-        speechLanguage(userText) === 'ru'
-          ? 'Сэр, задача оказалась сложнее, чем ожидалось.'
-          : 'Sir, the task turned out to be harder than expected.',
+      text,
       after,
       endConversation,
       resetConversation,

@@ -206,13 +206,20 @@ async function listWindows() {
 async function matchWindows(name) {
   const windows = await listWindows();
   const scored = windows
-    .map((w) => ({
-      w,
-      s: Math.max(score(name, w.app), score(name, w.title) > 0 ? 1 : 0),
-    }))
+    .map((w) => {
+      const byTitle = score(name, w.title);
+      const byApp = score(name, w.app);
+      return { w, s: Math.max(byTitle, byApp), byTitle: byTitle > byApp };
+    })
     .filter((x) => x.s > 0)
-    .sort((a, b) => b.s - a.s);
-  return { windows, matches: scored.map((x) => x.w) };
+    .sort((a, b) => b.s - a.s || (a.w.active ? 1 : 0) - (b.w.active ? 1 : 0));
+  return {
+    windows,
+    matches: scored.map((x) => x.w),
+    // The best match was found by its title («hisobx - Antigravity IDE»),
+    // not by its app («Antigravity IDE»).
+    byTitle: scored[0]?.byTitle ?? false,
+  };
 }
 
 const windowInfo = ({ title, app, active, minimized }) => ({
@@ -236,17 +243,18 @@ async function focusWindow({ name }) {
 }
 
 async function closeWindows({ name }) {
-  const { windows, matches } = await matchWindows(name);
+  const { windows, matches, byTitle } = await matchWindows(name);
   if (!matches.length) {
     return {
       error: `No open window matches «${name}».`,
       open_windows: windows.map(windowInfo),
     };
   }
-  // Same app as the best match only: "close chrome" closes every Chrome window.
-  const targets = matches.filter(
-    (w) => w.app === matches[0].app || norm(w.title) === norm(name)
-  );
+  // "close chrome" closes every Chrome window; "close hisobx" only the
+  // windows whose title matches, not every window of that editor.
+  const targets = byTitle
+    ? matches.filter((w) => score(name, w.title) > 0)
+    : matches.filter((w) => w.app === matches[0].app);
   for (const w of targets) {
     // Ask politely (like clicking ×), so apps can save state.
     await sh(
@@ -413,7 +421,9 @@ async function pressKeys({ keys }) {
         'keys must look like "ctrl+c", "Return", "super", "alt+Tab ctrl+v".',
     };
   }
-  await sh(`xdotool key --clearmodifiers ${k}`);
+  // 150 ms between keys: TUIs (Claude Code's menus) drop a key that
+  // follows another within a few ms («Down Return»).
+  await sh(`xdotool key --clearmodifiers --delay 150 ${k}`, 30000);
   return { status: 'pressed', keys: k };
 }
 

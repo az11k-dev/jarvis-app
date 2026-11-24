@@ -121,7 +121,7 @@ export const transcribeRecording = ({ bytes, name, type }, options) =>
  * OpenAIError that says why.
  */
 export async function createResponse(
-  { model = MODELS.chat, instructions, input, tools },
+  { model = MODELS.chat, instructions, input, tools, toolChoice },
   { signal, timeoutMs = CHAT_TIMEOUT_MS } = {}
 ) {
   const headers = { ...authHeaders(), 'Content-Type': 'application/json' };
@@ -130,6 +130,7 @@ export async function createResponse(
     instructions,
     input,
     tools,
+    ...(toolChoice ? { tool_choice: toolChoice } : {}),
     store: false,
     max_output_tokens: 1500,
   });

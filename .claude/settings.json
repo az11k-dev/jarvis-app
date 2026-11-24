@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(npm test)",
+      "Bash(npm test *)",
+      "Bash(npm run lint)",
+      "Bash(npx expo lint)",
+      "Bash(npx expo lint *)",
+      "Bash(npx prettier *)",
+      "Bash(npx eslint *)",
+      "Bash(node --test *)",
+      "Bash(npx expo-modules-autolinking resolve *)",
+      "Bash(git status *)",
+      "Bash(git status)",
+      "Bash(git diff *)",
+      "Bash(git diff)",
+      "Bash(git log *)",
+      "Bash(git show *)",
+      "Bash(git branch *)",
+      "Bash(adb devices *)",
+      "Bash(adb logcat *)",
+      "Bash(adb exec-out screencap *)",
+      "Bash(adb shell dumpsys *)",
+      "Bash(adb shell pidof *)",
+      "Bash(adb shell input *)",
+      "Bash(adb reverse *)",
+      "Bash(~/Android/Sdk/platform-tools/adb devices *)",
+      "Bash(~/Android/Sdk/platform-tools/adb logcat *)",
+      "Bash(~/Android/Sdk/platform-tools/adb exec-out screencap *)",
+      "Bash(~/Android/Sdk/platform-tools/adb shell dumpsys *)",
+      "Bash(~/Android/Sdk/platform-tools/adb shell input *)",
+      "Bash(curl -s https://jarvis.react.uz/v1/health)",
+      "Bash(agy *)",
+      "Bash(codex exec *)"
+    ],
+    "ask": [
+      "Bash(eas build --profile production *)",
+      "Bash(npx eas-cli build --profile production *)",
+      "Bash(eas submit *)",
+      "Bash(npx eas-cli submit *)",
+      "Bash(ssh my-server *)",
+      "Bash(remote/setup.sh *)"
+    ],
+    "deny": ["Bash(git push --force *)", "Bash(git push -f *)"]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.mjs",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-edit.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/after-edit.mjs",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

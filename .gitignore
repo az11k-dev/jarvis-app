@@ -48,3 +48,7 @@ modules/*/android/.cxx/
 # Gradle caches/outputs of local native modules
 modules/*/android/.gradle/
 modules/*/android/build/
+
+# Claude Code: personal notes and local overrides
+CLAUDE.local.md
+.claude/settings.local.json

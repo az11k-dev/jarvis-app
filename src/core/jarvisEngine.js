@@ -657,6 +657,7 @@ export class JarvisEngine {
   }
 
   async handleSpeechEnd(utterance) {
+    this.speechEndedAt = Date.now();
     this.set({ userSpeaking: false });
     if (this.sosPending) return this.hearDuringCountdown(utterance);
     const wasListening = this.status === 'listening';
@@ -680,7 +681,11 @@ export class JarvisEngine {
         // that isn't for JARVIS (TV, calls, people talking) never leaves
         // the phone. Platforms without the on-device recognizer (iOS)
         // check the cloud transcript instead, below.
+        const wakeStarted = Date.now();
         const heard = await this.hearWakeWord(utterance);
+        if (__DEV__) {
+          console.log(`[perf] wake check ${Date.now() - wakeStarted}ms`);
+        }
         if (turn !== this.turn) return;
         if (!heard) {
           this.busy = false; // not for us
@@ -807,6 +812,15 @@ export class JarvisEngine {
   async transcribe(wav, signal) {
     if (OPENAI_API_KEY) {
       const started = Date.now();
+      // Dev only: what the device hears for the same audio, to see how often
+      // it agrees with the cloud (could the model start on it earlier?).
+      if (__DEV__ && localSpeech.sttReady) {
+        localSpeech.transcribe(wav).then(
+          (local) =>
+            console.log(`[perf] stt local ${Date.now() - started}ms: ${local}`),
+          () => {}
+        );
+      }
       try {
         const text = await transcribe(wav, {
           signal,
@@ -831,6 +845,7 @@ export class JarvisEngine {
     // waiting for a yes (a taxi order, a Telegram deletion).
     if (this.busy) this.cancelTurn();
     this.clearFollowUp();
+    this.speechEndedAt = null; // typed: no speech to time from
     const turn = ++this.turn;
     this.busy = true;
     this.abort = new AbortController();
@@ -880,7 +895,13 @@ export class JarvisEngine {
           activity: TOOL_ACTIVITY[name] || 'Working…',
         }),
     });
-    if (__DEV__) console.log(`[perf] brain ${Date.now() - thinkStarted}ms`);
+    if (__DEV__) {
+      // From the end of the user's speech (spoken turns only).
+      const sinceSpeech = this.speechEndedAt
+        ? `, ${Date.now() - this.speechEndedAt}ms after speech ended`
+        : '';
+      console.log(`[perf] brain ${Date.now() - thinkStarted}ms${sinceSpeech}`);
+    }
     if (turn !== this.turn) return;
     if (reply.sos === 'start') return this.beginSos(turn);
 

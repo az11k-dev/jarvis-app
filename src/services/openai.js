@@ -153,7 +153,11 @@ export async function createResponse(
     max_output_tokens: 1500,
     // Routes every request with the same static prefix (tools +
     // instructions) to the same cache, so repeat rounds pay ~10% for it.
-    ...(cacheKey ? { prompt_cache_key: cacheKey } : {}),
+    // The default cache lives 5–10 min, so the first command after a quiet
+    // spell paid ~0.4 s more; '24h' keeps the prefix warm all day.
+    ...(cacheKey
+      ? { prompt_cache_key: cacheKey, prompt_cache_retention: '24h' }
+      : {}),
     ...(reasoning ? { reasoning: { effort: reasoning } } : {}),
   });
 

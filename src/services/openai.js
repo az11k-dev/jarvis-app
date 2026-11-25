@@ -114,6 +114,16 @@ export const transcribeRecording = ({ bytes, name, type }, options) =>
     options
   );
 
+/** `[perf] llm 1840ms in=15200 (cached 14080) out=42 (reasoning 0)`. */
+function logUsage(data, ms) {
+  const u = data.usage || {};
+  const cached = u.input_tokens_details?.cached_tokens ?? 0;
+  const thought = u.output_tokens_details?.reasoning_tokens ?? 0;
+  console.log(
+    `[perf] llm ${ms}ms in=${u.input_tokens ?? '?'} (cached ${cached}) out=${u.output_tokens ?? '?'} (reasoning ${thought})`
+  );
+}
+
 /**
  * One call to the Responses API. Returns the raw response object.
  * Never hangs: each attempt is cut off after `timeoutMs`, and a dropped
@@ -121,7 +131,15 @@ export const transcribeRecording = ({ bytes, name, type }, options) =>
  * OpenAIError that says why.
  */
 export async function createResponse(
-  { model = MODELS.chat, instructions, input, tools, toolChoice },
+  {
+    model = MODELS.chat,
+    instructions,
+    input,
+    tools,
+    toolChoice,
+    cacheKey,
+    reasoning,
+  },
   { signal, timeoutMs = CHAT_TIMEOUT_MS } = {}
 ) {
   const headers = { ...authHeaders(), 'Content-Type': 'application/json' };
@@ -133,10 +151,15 @@ export async function createResponse(
     ...(toolChoice ? { tool_choice: toolChoice } : {}),
     store: false,
     max_output_tokens: 1500,
+    // Routes every request with the same static prefix (tools +
+    // instructions) to the same cache, so repeat rounds pay ~10% for it.
+    ...(cacheKey ? { prompt_cache_key: cacheKey } : {}),
+    ...(reasoning ? { reasoning: { effort: reasoning } } : {}),
   });
 
   for (let attempt = 0; ; attempt++) {
     const request = withTimeout(signal, timeoutMs);
+    const started = Date.now();
     let failure;
     try {
       const res = await fetch(`${API}/responses`, {
@@ -153,6 +176,7 @@ export async function createResponse(
             `OpenAI error: ${data.error?.message || 'the response failed'}`
           );
         }
+        if (__DEV__) logUsage(data, Date.now() - started);
         return data;
       }
       const message = await readError(res);

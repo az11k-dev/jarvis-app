@@ -872,6 +872,7 @@ export class JarvisEngine {
       return this.endSos(turn);
     }
 
+    const thinkStarted = Date.now();
     const reply = await this.brain.respond(text, {
       signal,
       onToolStart: (name) =>
@@ -879,6 +880,7 @@ export class JarvisEngine {
           activity: TOOL_ACTIVITY[name] || 'Working…',
         }),
     });
+    if (__DEV__) console.log(`[perf] brain ${Date.now() - thinkStarted}ms`);
     if (turn !== this.turn) return;
     if (reply.sos === 'start') return this.beginSos(turn);
 

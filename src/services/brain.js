@@ -1,6 +1,6 @@
 import { JARVIS_INSTRUCTIONS } from '../utils/constants';
 import { speechLanguage } from '../utils/language';
-import { TOOL_TIMEOUT_MS } from '../config/jarvis';
+import { CHAT_REASONING_EFFORT, TOOL_TIMEOUT_MS } from '../config/jarvis';
 import { createResponse, OpenAIError } from './openai';
 import { runTool, TOOL_DEFINITIONS, UNTIMED_TOOLS } from './tools';
 
@@ -32,9 +32,39 @@ function runToolInTime(name, args, context) {
   return Promise.race([run, limit]).finally(() => clearTimeout(timer));
 }
 
-function instructions() {
-  const now = new Date();
-  return `${JARVIS_INSTRUCTIONS}\n\nCurrent local date and time: ${now.toString()}.`;
+// Same key for every brain request: they share the tools + instructions
+// prefix, so OpenAI serves it from cache.
+const CACHE_KEY = 'jarvis-brain';
+
+// Read-only lookups the model often asks for together («unread Telegram
+// and missed calls»): they run at once instead of one after another.
+// Anything that touches the screen, sends, orders or plays stays in order.
+const PARALLEL_TOOLS = new Set([
+  'tg_unread_chats',
+  'tg_find_chat',
+  'tg_read_messages',
+  'tg_search_messages',
+  'contacts_find',
+  'sms_read',
+  'call_log',
+  'sos_contacts',
+  'tezkor_search_food',
+  'tezkor_restaurants',
+  'tezkor_menu',
+  'places',
+  'where_am_i',
+  'list_reminders',
+  'server_status',
+]);
+
+/**
+ * The user's words with the local time stamped on them. The time lives in
+ * the message, not the instructions: instructions that change every second
+ * made every request miss OpenAI's prompt cache. Minutes are enough.
+ */
+function stamped(userText) {
+  const time = new Date().toString().replace(/:\d\d (?=GMT)/, ' ');
+  return `${userText}\n[local time: ${time}]`;
 }
 
 function outputText(response) {
@@ -101,7 +131,10 @@ export class JarvisBrain {
    */
   async respond(userText, { signal, onToolStart } = {}) {
     const turn = ++this.turns;
-    const input = [...this.history, { role: 'user', content: userText }];
+    const input = [
+      ...this.history,
+      { role: 'user', content: stamped(userText) },
+    ];
     const after = [];
     let endConversation = false;
     let resetConversation = false;
@@ -110,7 +143,13 @@ export class JarvisBrain {
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       const response = await createResponse(
-        { instructions: instructions(), input, tools: TOOL_DEFINITIONS },
+        {
+          instructions: JARVIS_INSTRUCTIONS,
+          input,
+          tools: TOOL_DEFINITIONS,
+          cacheKey: CACHE_KEY,
+          reasoning: CHAT_REASONING_EFFORT,
+        },
         { signal }
       );
       const calls = (response.output || []).filter(
@@ -146,13 +185,45 @@ export class JarvisBrain {
         return { text, after, endConversation, resetConversation, keepOpen };
       }
 
+      // Start every call of the round now if all are read-only lookups;
+      // otherwise each starts when the one before it has finished.
+      const parallel =
+        calls.length > 1 && calls.every((c) => PARALLEL_TOOLS.has(c.name));
+      const runs = [];
+      const run = (call) => {
+        if (!runs[call.index]) {
+          onToolStart?.(call.name);
+          const started = Date.now();
+          runs[call.index] = Promise.resolve()
+            .then(() => {
+              const args = call.arguments ? JSON.parse(call.arguments) : {};
+              return runToolInTime(call.name, args, { signal, turn });
+            })
+            .then(
+              (result) => ({ result }),
+              (error) => ({ error })
+            )
+            .finally(() => {
+              if (__DEV__) {
+                console.log(
+                  `[perf] tool ${call.name} ${Date.now() - started}ms`
+                );
+              }
+            });
+        }
+        return runs[call.index];
+      };
+      calls.forEach((call, index) => (call.index = index));
+      if (parallel) calls.forEach(run);
+
       for (const call of calls) {
         signal?.throwIfAborted?.();
-        onToolStart?.(call.name);
         let output;
-        try {
-          const args = call.arguments ? JSON.parse(call.arguments) : {};
-          const result = await runToolInTime(call.name, args, { signal, turn });
+        const { result, error } = await run(call);
+        if (error) {
+          if (signal?.aborted) throw error;
+          output = { error: error.message };
+        } else {
           output = result.output;
           if (result.after) after.push(result.after);
           if (result.keepOpen) keepOpen = true;
@@ -168,9 +239,6 @@ export class JarvisBrain {
           }
           if (result.endConversation) endConversation = true;
           if (result.resetConversation) resetConversation = true;
-        } catch (e) {
-          if (signal?.aborted) throw e;
-          output = { error: e.message };
         }
         if (__DEV__) {
           console.log(
@@ -200,7 +268,9 @@ export class JarvisBrain {
       text = outputText(
         await createResponse(
           {
-            instructions: instructions(),
+            instructions: JARVIS_INSTRUCTIONS,
+            cacheKey: CACHE_KEY,
+            reasoning: CHAT_REASONING_EFFORT,
             input: [
               ...input,
               {

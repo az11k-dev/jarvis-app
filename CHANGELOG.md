@@ -49,6 +49,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Faster answers: the chat model now thinks at low effort (`CHAT_REASONING_EFFORT`, was the model's default medium), the system prompt stays identical between requests so OpenAI serves it from its prompt cache, and read-only lookups asked for together (Telegram, calls, SMS, contacts, places, Tezkor) run at the same time. A simple question went from ~2.9 s to ~1.7 s of model time and a three-step request from 20 s to 9 s
+
 - Uzum Tezkor: dish matching works on whole words (`src/services/tezkorFormat.js`), so «osh» no longer finds «Oshin» or «lavash» Lavazza coffee; a place named in the query is recognised (`name_matches_query`); places are spoken by brand, with the branch kept separately; a menu overview takes dishes from every category and a menu query also matches category names («напитки»); dishes with paid options are marked (`has_options`); closed places say whether they open today or tomorrow. Unit tests for the helpers run with `npm test` (Node's built-in runner)
 - The interface is now English only: status lines, buttons, the log, the voice picker, the Telegram login window, error messages and notifications were partly in Russian. JARVIS still understands and answers in Russian or English
 - Privacy: in standby the wake word is checked on the device, and only phrases that start with it are sent to OpenAI — background speech (TV, calls, conversations) stays on the phone; a bare «Джарвис» is acknowledged without a cloud round-trip

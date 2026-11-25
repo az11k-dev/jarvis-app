@@ -106,8 +106,14 @@ class VoiceOutput {
       if (!cacheable) safeDelete(result?.file);
     };
 
+    const started = Date.now();
     for (let i = 0; i < chunks.length; i++) {
       const result = await synth(i);
+      if (__DEV__ && i === 0) {
+        console.log(
+          `[perf] tts first chunk ${Date.now() - started}ms (${chunks[0].length} chars)`
+        );
+      }
       if (i + 1 < chunks.length) synth(i + 1);
       try {
         if (cancelled()) break;

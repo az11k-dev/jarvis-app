@@ -4,7 +4,8 @@
 export const OPENAI_API_KEY = process.env.EXPO_PUBLIC_OPENAI_API_KEY;
 
 export const MODELS = {
-  // Fast non-reasoning model with function calling + built-in web search.
+  // Chat model with function calling + built-in web search (see
+  // CHAT_REASONING_EFFORT for how much it thinks).
   chat: process.env.EXPO_PUBLIC_OPENAI_MODEL || 'gpt-6-luna',
   // Analyses camera photos (analyze_image tool). Must accept image input.
   vision:
@@ -16,6 +17,13 @@ export const MODELS = {
   transcribe:
     process.env.EXPO_PUBLIC_OPENAI_TRANSCRIBE_MODEL || 'gpt-transcribe',
 };
+
+// Reasoning effort of the chat model ('none' | 'low' | 'medium' | 'high').
+// The model defaults to 'medium', which spent ~200 hidden tokens and 1–6 s
+// thinking before even «который час?». 'low' skips thinking on easy turns
+// and still plans multi-step tool work.
+export const CHAT_REASONING_EFFORT =
+  process.env.EXPO_PUBLIC_OPENAI_REASONING || 'low';
 
 // How long to wait for OpenAI's transcription before falling back to the
 // on-device recognizer. Short phrases normally come back in 1–2 s.

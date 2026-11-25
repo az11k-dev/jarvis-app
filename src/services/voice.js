@@ -3,8 +3,9 @@ import { File, Paths } from 'expo-file-system';
 import * as Speech from 'expo-speech';
 import { DEFAULT_VOICE } from '../config/jarvis';
 import { localSpeech } from './localSpeech';
+import { voiceLanguage } from './voiceFormat';
 
-const isRussian = (text) => /[а-яё]/i.test(text);
+const isRussian = (text) => voiceLanguage(text) === 'ru';
 
 /** Strips things that sound bad when read aloud. */
 export function cleanForSpeech(text) {

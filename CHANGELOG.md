@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- An English reply that quotes a Russian word («там») is read by the English voice; the voice now follows the alphabet most of the sentence is in, not any single Cyrillic letter
+
 - JARVIS no longer goes back to listening or standby without an answer: a request to the model is cut off after 45 s and retried once on a dropped connection, 5xx or rate limit; an empty reply is asked for again; a hanging tool fails after 45 s; and every failure is spoken with its reason (no connection, timeout, rejected key, no credit, rate limit, server trouble). The debug `?ask=` path speaks errors too
 - Coming back to the app mid-turn could leave JARVIS stuck in "Processing" (the microphone restart restored a stale status)
 - When the device heard the wake word but the cloud transcript came back empty, the command was dropped; the on-device transcript is used instead
@@ -49,7 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
-- Faster answers: the chat model now thinks at low effort (`CHAT_REASONING_EFFORT`, was the model's default medium), the system prompt stays identical between requests so OpenAI serves it from its prompt cache, and read-only lookups asked for together (Telegram, calls, SMS, contacts, places, Tezkor) run at the same time. A simple question went from ~2.9 s to ~1.7 s of model time and a three-step request from 20 s to 9 s
+- Faster answers: the chat model now thinks at low effort (`CHAT_REASONING_EFFORT`, was the model's default medium), the system prompt stays identical between requests so OpenAI serves it from its prompt cache, and read-only lookups asked for together (Telegram, calls, SMS, contacts, places, Tezkor) run at the same time. A simple question went from ~2.9 s to ~1.7 s of model time and a three-step request from 20 s to 9 s. The prompt cache is kept for 24 h, so the first command after a quiet spell is fast too
 
 - Uzum Tezkor: dish matching works on whole words (`src/services/tezkorFormat.js`), so «osh» no longer finds «Oshin» or «lavash» Lavazza coffee; a place named in the query is recognised (`name_matches_query`); places are spoken by brand, with the branch kept separately; a menu overview takes dishes from every category and a menu query also matches category names («напитки»); dishes with paid options are marked (`has_options`); closed places say whether they open today or tomorrow. Unit tests for the helpers run with `npm test` (Node's built-in runner)
 - The interface is now English only: status lines, buttons, the log, the voice picker, the Telegram login window, error messages and notifications were partly in Russian. JARVIS still understands and answers in Russian or English
